@@ -83,6 +83,61 @@ This prevents cross-account correlation by salting session IDs with the auth ide
 
 ---
 
+## Antigravity — Quota Tracking
+
+Proactive quota awareness with reason-based backoff and model-level rate limit isolation.
+
+### Quota Checker
+
+```
+Endpoint: https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels
+Cache:    5-minute TTL per account (sync.RWMutex)
+Handles:  403 Forbidden → IsForbidden=true
+```
+
+`AntigravityQuotaChecker` satisfies the `QuotaChecker` interface. Returns `QuotaData` containing `[]ModelQuota` — each with `Name`, `RemainingFraction float64`, `ResetTime time.Time`, and `DisplayName`. No background polling; cache is refreshed on-demand.
+
+### Rate Limiter
+
+`AntigravityRateLimiter` enforces reason-based backoff with model-level isolation (`accountID:modelName` keys):
+
+| Reason | Strategy | Delays |
+|:-------|:---------|:-------|
+| `QuotaExhausted` | Exponential | 60 → 300 → 1800 → 7200s |
+| `RateLimitExceeded` | Fixed account-wide | 5s |
+| `ModelCapacityExhausted` | Progressive | 5 / 10 / 15s |
+| `ServerError` | Fixed, no failure increment | 8s |
+
+`ServerError` (5xx) does not pollute `QuotaExhausted` failure count — preventing false exponential backoff from transient errors. Exhausting one model (e.g. `gemini-2.5-pro`) does not block other models on the same account.
+
+### Executor Integration
+
+The `antigravity_executor.go` checks `IsRateLimited()` before dispatch, calls `rateLimiter.ParseFromError()` on 429/5xx responses, and calls `MarkSuccess()` on success. `FetchAntigravityModels` extracts and caches `quotaInfo.remainingFraction` + `resetTime` from model discovery.
+
+### Management Endpoint
+
+`GET /v0/management/antigravity-quota` returns a JSON array of per-account quota state:
+
+```json
+[
+  {
+    "account_id": "...",
+    "email": "...",
+    "models": [
+      {
+        "name": "gemini-2.5-pro",
+        "remaining_fraction": 0.75,
+        "remaining_percent": 75,
+        "reset_time": "..."
+      }
+    ]
+  }
+]
+```
+
+**Files:** `internal/auth/antigravity/quota_checker.go`, `internal/auth/antigravity/rate_limiter.go`, `internal/runtime/executor/antigravity_executor.go`, `internal/api/handlers/management/antigravity_quota.go`
+---
+
 ## Translator Improvements
 
 ### Thinking Signature Fix (Claude via Antigravity)
@@ -330,6 +385,9 @@ Additional test files not present in upstream:
 | `internal/config/config_test.go` | OAuthProviderPriority YAML parsing |
 | `sdk/auth/filestore_test.go` | Priority parsing from JSON metadata |
 | `internal/watcher/synthesizer/file_test.go` | Priority resolution scenarios |
+| `internal/auth/antigravity/quota_checker_test.go` | Quota checker: caching, 403 handling, model parsing |
+| `internal/auth/antigravity/rate_limiter_test.go` | Rate limiter: reason-based backoff, model isolation |
+| `internal/auth/antigravity/integration_test.go` | End-to-end quota + rate limiter integration |
 
 ---
 
@@ -342,3 +400,4 @@ Additional test files not present in upstream:
 | Thinking signature & translator fixes | [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) | 003, 004, 005, 008 |
 | SDK routing, fallbacks, sanitization | [KooshaPari](https://github.com/KooshaPari/cliproxyapi-plusplus) | — |
 | Kilo provider, cliproxyctl, TUI | [KooshaPari](https://github.com/KooshaPari/cliproxyapi-plusplus) | — |
+| Antigravity quota tracking | original (this fork) | — |

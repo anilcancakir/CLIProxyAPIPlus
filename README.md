@@ -27,6 +27,7 @@ Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/
 - **Per-account User-Agent** rotation based on auth ID hash
 - **Version downgrade protection** per account
 - **Session ID hardening** with auth-salted format
+- **Quota Tracking** — proactive quota awareness via management API, reason-based backoff, model-level rate limit isolation
 
 ### Translator Fixes
 
@@ -70,7 +71,7 @@ User-controllable priority for OAuth providers and individual accounts:
 | Provider | Auth Method | Features |
 |:---------|:-----------|:---------|
 | GitHub Copilot | OAuth | Claude, GPT-5, Codex, Legacy models |
-| Antigravity | Token | Anti-fingerprinting, dynamic versioning, priority |
+| Antigravity | Token | Anti-fingerprinting, dynamic versioning, quota tracking, priority |
 | Kiro (AWS) | OAuth | Web search, CodeWhisperer, priority |
 | Kilo AI | Device Flow | OpenRouter models, dynamic discovery |
 | Claude | API Key | Request sanitization, priority |
