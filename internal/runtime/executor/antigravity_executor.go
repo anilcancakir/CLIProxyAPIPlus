@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,15 +47,36 @@ const (
 	antigravityModelsPath          = "/v1internal:fetchAvailableModels"
 	antigravityClientID            = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
 	antigravityClientSecret        = "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"
-	defaultAntigravityAgent        = "antigravity/1.104.0 darwin/arm64"
+	defaultAntigravityAgent        = "antigravity/1.18.3 darwin/arm64"
 	antigravityAuthType            = "antigravity"
 	refreshSkew                    = 3000 * time.Second
 	systemInstruction              = "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding.You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.**Absolute paths only****Proactiveness**"
 )
 
+const (
+	antigravityVersionURL     = "https://antigravity-auto-updater-974169037036.us-central1.run.app"
+	antigravityVersionRefresh = 12 * time.Hour
+)
+
 var (
 	randSource      = rand.New(rand.NewSource(time.Now().UnixNano()))
 	randSourceMutex sync.Mutex
+
+	antigravityUACache      = make(map[string]string)
+	antigravityUACacheMutex sync.RWMutex
+
+	// Per-account last-used version to prevent version downgrades
+	antigravityAccountVersions   = make(map[string]string)
+	antigravityAccountVersionsMu sync.RWMutex
+
+	antigravityUAVersions  = []string{"1.16.5", "1.17.0", "1.17.2", "1.18.0", "1.18.3"}
+	antigravityUAPlatforms = []string{"win32/x64", "darwin/arm64", "linux/x64", "linux/arm64"}
+
+	antigravityDynVersion   string
+	antigravityDynVersionMu sync.RWMutex
+	antigravityDynVersionAt time.Time
+	antigravityVersionRe    = regexp.MustCompile(`\d+\.\d+\.\d+`)
+
 	// antigravityPrimaryModelsCache keeps the latest non-empty model list fetched
 	// from any antigravity auth. Empty fetches never overwrite this cache.
 	antigravityPrimaryModelsCache struct {
@@ -124,6 +147,87 @@ func fallbackAntigravityPrimaryModels() []*registry.ModelInfo {
 		log.Debugf("antigravity executor: using cached primary model list (%d models)", len(models))
 	}
 	return models
+}
+
+// fetchAntigravityVersion fetches the current Antigravity version from the auto-updater API.
+// Results are cached for antigravityVersionRefresh duration. On error, returns the last known version.
+func fetchAntigravityVersion() string {
+	// 1. Return cached version if still fresh.
+	antigravityDynVersionMu.RLock()
+	v := antigravityDynVersion
+	t := antigravityDynVersionAt
+	antigravityDynVersionMu.RUnlock()
+	if v != "" && time.Since(t) < antigravityVersionRefresh {
+		return v
+	}
+
+	// 2. Fetch fresh version from auto-updater API with short timeout.
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(antigravityVersionURL)
+	if err != nil {
+		if v != "" {
+			return v
+		}
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		if v != "" {
+			return v
+		}
+		return ""
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	if err != nil {
+		if v != "" {
+			return v
+		}
+		return ""
+	}
+	parsed := antigravityVersionRe.FindString(string(body))
+	if parsed == "" {
+		if v != "" {
+			return v
+		}
+		return ""
+	}
+
+	// 3. Update cache and clear UA cache if version changed.
+	antigravityDynVersionMu.Lock()
+	antigravityDynVersion = parsed
+	antigravityDynVersionAt = time.Now()
+	if v != parsed {
+		antigravityUACacheMutex.Lock()
+		antigravityUACache = make(map[string]string)
+		antigravityUACacheMutex.Unlock()
+	}
+	antigravityDynVersionMu.Unlock()
+
+	log.Infof("[antigravity] fetched dynamic version: %s", parsed)
+	return parsed
+}
+
+// compareVersions compares two semver-style version strings (e.g. "1.18.3").
+// Returns -1 if a < b, 0 if a == b, 1 if a > b.
+func compareVersions(a, b string) int {
+	partsA := strings.SplitN(a, ".", 3)
+	partsB := strings.SplitN(b, ".", 3)
+	for i := 0; i < 3; i++ {
+		var na, nb int
+		if i < len(partsA) {
+			na, _ = strconv.Atoi(partsA[i])
+		}
+		if i < len(partsB) {
+			nb, _ = strconv.Atoi(partsB[i])
+		}
+		if na < nb {
+			return -1
+		}
+		if na > nb {
+			return 1
+		}
+	}
+	return 0
 }
 
 // AntigravityExecutor proxies requests to the antigravity upstream.
@@ -1366,7 +1470,11 @@ func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyau
 			projectID = strings.TrimSpace(pid)
 		}
 	}
-	payload = geminiToAntigravity(modelName, payload, projectID)
+	var authID string
+	if auth != nil {
+		authID = auth.ID
+	}
+	payload = geminiToAntigravity(modelName, payload, projectID, authID)
 	payload, _ = sjson.SetBytes(payload, "model", modelName)
 
 	useAntigravitySchema := strings.Contains(modelName, "claude") || strings.Contains(modelName, "gemini-3-pro-high")
@@ -1418,9 +1526,8 @@ func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyau
 		httpReq.Host = host
 	}
 
-	var authID, authLabel, authType, authValue string
+	var authLabel, authType, authValue string
 	if auth != nil {
-		authID = auth.ID
 		authLabel = auth.Label
 		authType, authValue = auth.AccountInfo()
 	}
@@ -1531,6 +1638,41 @@ func resolveUserAgent(auth *cliproxyauth.Auth) string {
 				return strings.TrimSpace(ua)
 			}
 		}
+		if auth.ID != "" {
+			// 1. Check per-account UA cache.
+			antigravityUACacheMutex.RLock()
+			ua, ok := antigravityUACache[auth.ID]
+			antigravityUACacheMutex.RUnlock()
+			if ok {
+				return ua
+			}
+			// 2. Try dynamic version first; fall back to deterministic static pick.
+			version := fetchAntigravityVersion()
+			if version == "" {
+				h := sha256.Sum256([]byte(auth.ID + "ua-salt"))
+				vIdx := int(binary.BigEndian.Uint32(h[:4])) % len(antigravityUAVersions)
+				version = antigravityUAVersions[vIdx]
+			}
+			// 3. Prevent version downgrades: never use a version older than last used.
+			antigravityAccountVersionsMu.RLock()
+			lastVer := antigravityAccountVersions[auth.ID]
+			antigravityAccountVersionsMu.RUnlock()
+			if lastVer != "" && compareVersions(version, lastVer) < 0 {
+				version = lastVer
+			}
+			// 4. Record this version as last used for the account.
+			antigravityAccountVersionsMu.Lock()
+			antigravityAccountVersions[auth.ID] = version
+			antigravityAccountVersionsMu.Unlock()
+			h := sha256.Sum256([]byte(auth.ID + "ua-salt"))
+			pIdx := int(binary.BigEndian.Uint32(h[4:8])) % len(antigravityUAPlatforms)
+			ua = fmt.Sprintf("antigravity/%s %s", version, antigravityUAPlatforms[pIdx])
+			// 5. Cache the generated UA for this account.
+			antigravityUACacheMutex.Lock()
+			antigravityUACache[auth.ID] = ua
+			antigravityUACacheMutex.Unlock()
+			return ua
+		}
 	}
 	return defaultAntigravityAgent
 }
@@ -1622,7 +1764,7 @@ func resolveCustomAntigravityBaseURL(auth *cliproxyauth.Auth) string {
 	return ""
 }
 
-func geminiToAntigravity(modelName string, payload []byte, projectID string) []byte {
+func geminiToAntigravity(modelName string, payload []byte, projectID string, authID string) []byte {
 	template, _ := sjson.Set(string(payload), "model", modelName)
 	template, _ = sjson.Set(template, "userAgent", "antigravity")
 	template, _ = sjson.Set(template, "requestType", "agent")
@@ -1631,10 +1773,11 @@ func geminiToAntigravity(modelName string, payload []byte, projectID string) []b
 	if projectID != "" {
 		template, _ = sjson.Set(template, "project", projectID)
 	} else {
-		template, _ = sjson.Set(template, "project", generateProjectID())
+		projectID = generateProjectID()
+		template, _ = sjson.Set(template, "project", projectID)
 	}
 	template, _ = sjson.Set(template, "requestId", generateRequestID())
-	template, _ = sjson.Set(template, "request.sessionId", generateStableSessionID(payload))
+	template, _ = sjson.Set(template, "request.sessionId", generateStableSessionID(payload, authID, modelName, projectID))
 
 	template, _ = sjson.Delete(template, "request.safetySettings")
 	if toolConfig := gjson.Get(template, "toolConfig"); toolConfig.Exists() && !gjson.Get(template, "request.toolConfig").Exists() {
@@ -1655,26 +1798,60 @@ func generateSessionID() string {
 	return "-" + strconv.FormatInt(n, 10)
 }
 
-func generateStableSessionID(payload []byte) string {
+func generateStableSessionID(payload []byte, authID, modelName, projectID string) string {
+	firstUserText := ""
 	contents := gjson.GetBytes(payload, "request.contents")
 	if contents.IsArray() {
 		for _, content := range contents.Array() {
 			if content.Get("role").String() == "user" {
 				text := content.Get("parts.0.text").String()
 				if text != "" {
-					h := sha256.Sum256([]byte(text))
-					n := int64(binary.BigEndian.Uint64(h[:8])) & 0x7FFFFFFFFFFFFFFF
-					return "-" + strconv.FormatInt(n, 10)
+					firstUserText = text
+					break
 				}
 			}
 		}
 	}
-	return generateSessionID()
+
+	// Generate stable UUID from auth ID + first user text for cross-account isolation.
+	h := sha256.Sum256([]byte(authID + ":" + firstUserText))
+	uuidBytes := make([]byte, 16)
+	copy(uuidBytes, h[:16])
+	// Set UUID v4 variant bits.
+	uuidBytes[6] = (uuidBytes[6] & 0x0f) | 0x40
+	uuidBytes[8] = (uuidBytes[8] & 0x3f) | 0x80
+	stableUUID := fmt.Sprintf("%x-%x-%x-%x-%x",
+		uuidBytes[0:4], uuidBytes[4:6], uuidBytes[6:8], uuidBytes[8:10], uuidBytes[10:16])
+
+	// Generate random seed hex to match real traffic pattern.
+	randSourceMutex.Lock()
+	seedBytes := make([]byte, 8)
+	for i := range seedBytes {
+		seedBytes[i] = byte(randSource.Intn(256))
+	}
+	randSourceMutex.Unlock()
+	seedHex := hex.EncodeToString(seedBytes)
+
+	return fmt.Sprintf("-%s:%s:%s:seed-%s", stableUUID, modelName, projectID, seedHex)
 }
 
 func generateProjectID() string {
-	adjectives := []string{"useful", "bright", "swift", "calm", "bold"}
-	nouns := []string{"fuze", "wave", "spark", "flow", "core"}
+	adjectives := []string{
+		"zippy", "ethereal", "shaped", "symbolic", "coral",
+		"refined", "bright", "swift", "calm", "bold",
+		"vivid", "gentle", "lucid", "crisp", "deft",
+		"keen", "plush", "sleek", "tidy", "warm",
+		"agile", "brisk", "clever", "daring", "eager",
+		"fancy", "golden", "humble", "jolly", "lively",
+	}
+	nouns := []string{
+		"memento", "sunup", "reef", "zucchini", "cubist",
+		"zepplin", "fuze", "wave", "spark", "flow",
+		"prism", "grove", "delta", "ridge", "bloom",
+		"crest", "haven", "nexus", "orbit", "pulse",
+		"quartz", "shard", "thorn", "vault", "whirl",
+		"atlas", "blaze", "cedar", "drift", "ember",
+	}
 	randSourceMutex.Lock()
 	adj := adjectives[randSource.Intn(len(adjectives))]
 	noun := nouns[randSource.Intn(len(nouns))]
