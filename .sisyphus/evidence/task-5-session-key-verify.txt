@@ -1,0 +1,3 @@
+202:// Forward X-Session-Key for sticky routing.
+205:			if sessionKey := strings.TrimSpace(ginCtx.GetHeader("X-Session-Key")); sessionKey != "" {
+206:				meta["session_key"] = sessionKey
