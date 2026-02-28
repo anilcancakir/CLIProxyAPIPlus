@@ -923,3 +923,75 @@ func TestBuildGeminiVirtualID(t *testing.T) {
 		})
 	}
 }
+
+func TestFileSynthesizer_Synthesize_PriorityIntegration(t *testing.T) {
+	tempDir := t.TempDir()
+
+	writeJSON := func(t *testing.T, dir, filename string, data map[string]any) {
+		t.Helper()
+		b, err := json.Marshal(data)
+		if err != nil {
+			t.Fatalf("failed to marshal JSON: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, filename), b, 0644); err != nil {
+			t.Fatalf("failed to write file: %v", err)
+		}
+	}
+
+	// Create 3 auth files
+	writeJSON(t, tempDir, "claude-user1.json", map[string]any{"type": "claude"})
+	writeJSON(t, tempDir, "antigravity-user1.json", map[string]any{"type": "antigravity", "priority": 15})
+	writeJSON(t, tempDir, "antigravity-user2.json", map[string]any{"type": "antigravity"})
+
+	synth := NewFileSynthesizer()
+	ctx := &SynthesisContext{
+		Config: &config.Config{
+			OAuthProviderPriority: map[string]int{"claude": 10, "antigravity": 0},
+		},
+		AuthDir:     tempDir,
+		Now:         time.Now(),
+		IDGenerator: NewStableIDGenerator(),
+	}
+
+	auths, err := synth.Synthesize(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(auths) != 3 {
+		t.Fatalf("expected 3 auths, got %d", len(auths))
+	}
+
+	foundClaude1 := false
+	foundAntigravity1 := false
+	foundAntigravity2 := false
+
+	for _, a := range auths {
+		if a.Provider == "claude" && strings.Contains(a.ID, "claude-user1") {
+			foundClaude1 = true
+			if got := a.Attributes["priority"]; got != "10" {
+				t.Errorf("expected claude-user1 priority to be '10', got %q", got)
+			}
+		} else if a.Provider == "antigravity" && strings.Contains(a.ID, "antigravity-user1") {
+			foundAntigravity1 = true
+			if got := a.Attributes["priority"]; got != "15" {
+				t.Errorf("expected antigravity-user1 priority to be '15', got %q", got)
+			}
+		} else if a.Provider == "antigravity" && strings.Contains(a.ID, "antigravity-user2") {
+			foundAntigravity2 = true
+			if got := a.Attributes["priority"]; got != "0" {
+				t.Errorf("expected antigravity-user2 priority to be '0', got %q", got)
+			}
+		}
+	}
+
+	if !foundClaude1 {
+		t.Error("claude-user1 not found")
+	}
+	if !foundAntigravity1 {
+		t.Error("antigravity-user1 not found")
+	}
+	if !foundAntigravity2 {
+		t.Error("antigravity-user2 not found")
+	}
+}
