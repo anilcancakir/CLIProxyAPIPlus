@@ -1,6 +1,6 @@
 package middleware
 
-// NOTE: The fork (kooshapari) added requestBodyOverrideContextKey and extractRequestBody
+// NOTE: The fork added requestBodyOverrideContextKey and extractRequestBody
 // that do not exist in this origin repo. Tests below are adapted to test
 // ResponseWriterWrapper and RequestInfo construction which DO exist.
 

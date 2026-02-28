@@ -1,6 +1,6 @@
 package middleware
 
-// NOTE: The fork (kooshapari) added shouldSkipMethodForRequestLogging and
+// NOTE: The fork added shouldSkipMethodForRequestLogging and
 // shouldCaptureRequestBody helpers that do not exist in this origin repo.
 // The tests below are adapted to test shouldLogRequest which DOES exist,
 // covering the path-based filtering logic equivalent.

@@ -1,6 +1,6 @@
 package executor
 
-// NOTE: The fork (kooshapari) added an in-process antigravity primary models cache
+// NOTE: The fork added an in-process antigravity primary models cache
 // (antigravityPrimaryModelsCache, storeAntigravityPrimaryModels, loadAntigravityPrimaryModels)
 // that does not exist in this origin repo. The tests below are adapted to verify the
 // registry.ModelInfo cloning semantics used in existing executor helpers instead.

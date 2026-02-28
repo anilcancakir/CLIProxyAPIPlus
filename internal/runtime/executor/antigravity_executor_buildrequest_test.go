@@ -1,6 +1,6 @@
 package executor
 
-// NOTE: The fork (kooshapari) extended CleanJSONSchemaForAntigravity/Gemini to additionally
+// NOTE: The fork extended CleanJSONSchemaForAntigravity/Gemini to additionally
 // remove $id, patternProperties, prefill, and enumTitles. Origin only removes the keywords
 // defined in its removeUnsupportedKeywords ($schema, $defs, definitions, const, $ref,
 // additionalProperties, propertyNames) and unsupportedConstraints.
