@@ -1,0 +1,2 @@
+// claude_openai_response.go changes:
+// - Added streaming tool call delta support

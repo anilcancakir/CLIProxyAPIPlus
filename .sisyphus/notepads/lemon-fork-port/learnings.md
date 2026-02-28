@@ -9,3 +9,12 @@
 ## Task 2: Copilot Executor Port
 Successfully applied patches 001, 002, and 007 to internal/runtime/executor/github_copilot_executor.go. Tested all functionality with go test and go build. Copilot Claude functionality and thinking models are now enabled in the executor.
 
+
+### Task 4
+- Directly ported features from lemon patches 003, 004, 005, 008 into Antigravity translators
+- Avoided removing tool ID injection (`generateToolID`) in `antigravity_gemini_request.go`
+- Added streaming tool call delta support in `claude_openai_response.go`
+- Added thinking signature fix for Claude models
+- Added assistant prefill handling in `antigravity_claude_request.go` and `antigravity_gemini_request.go`
+- Removed `enableThoughtTranslate` from `antigravity_claude_request.go`
+- Added thinking signature caching to non-streaming path in `antigravity_claude_response.go`

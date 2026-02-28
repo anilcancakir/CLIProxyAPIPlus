@@ -1,0 +1,4 @@
+// antigravity_gemini_request.go changes:
+// - Added thinking signature fix for Claude/Gemini
+// - Added consecutive turn merge
+// - Added assistant prefill fix for Claude models
