@@ -1,0 +1,9 @@
+385:				_, isCodexAutoExecutor := existingExecutor.(*executor.CodexAutoExecutor)
+386:				if isCodexAutoExecutor {
+391:		s.coreManager.RegisterExecutor(executor.NewCodexAutoExecutor(s.cfg))
+453:	reboundCodex := false
+456:			if reboundCodex {
+459:			reboundCodex = true
+504:	tokenResult, err := s.tokenProvider.Load(ctx, s.cfg)
+508:	if tokenResult == nil {
+509:		tokenResult = &TokenClientResult{}
