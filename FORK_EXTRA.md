@@ -185,6 +185,45 @@ Session key is extracted from the request header and forwarded to the metadata m
 
 ---
 
+## OAuth Provider Priority
+
+When multiple OAuth providers register the same model alias, the system previously fell back to provider ordering by client count — not user-controllable. This feature lets you assign explicit integer priorities at two levels.
+
+### Priority Resolution Hierarchy
+
+1. **Account-level** — `"priority"` field in the JSON auth file (highest; overrides everything)
+2. **Provider-level** — `oauth-provider-priority` map in YAML config (fallback when no JSON priority)
+3. **Default 0** — applied when neither is set
+
+Account-level priority wins unconditionally. An explicit `"priority": 0` in a JSON file overrides a non-zero provider config value (zero-value distinction is preserved). Negative values are allowed for explicit de-prioritization below the default.
+
+### Config (Provider-Level)
+
+```yaml
+# Higher value = higher preference. Default: 0.
+# Account-level "priority" in JSON auth files overrides these.
+oauth-provider-priority:
+  claude: 10        # Prefer direct Claude OAuth over antigravity
+  antigravity: 0    # Default priority
+  kiro: 5           # Medium priority
+```
+
+### JSON Auth File (Account-Level)
+
+```json
+{
+  "type": "claude",
+  "email": "user@example.com",
+  "priority": 15
+}
+```
+
+Missing `oauth-provider-priority` in config leaves the map nil — no panic, full backward compatibility.
+
+**Files:** `internal/config/config.go`, `sdk/auth/filestore.go`, `internal/watcher/synthesizer/file.go`
+
+---
+
 ## Kilo AI Provider
 
 Full Kilo AI (OpenRouter) integration:
@@ -288,6 +327,9 @@ Additional test files not present in upstream:
 | `sdk/api/handlers/handlers_*_test.go` | Handler metadata, error responses |
 | `sdk/config/config_test.go` | Config type exports |
 | `internal/translator/openai/claude/openai_claude_response_test.go` | Claude response translation |
+| `internal/config/config_test.go` | OAuthProviderPriority YAML parsing |
+| `sdk/auth/filestore_test.go` | Priority parsing from JSON metadata |
+| `internal/watcher/synthesizer/file_test.go` | Priority resolution scenarios |
 
 ---
 

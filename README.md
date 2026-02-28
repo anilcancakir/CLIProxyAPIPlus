@@ -42,6 +42,7 @@ Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/
 - **Claude Request Sanitization** — strips placeholder fields from tool schemas
 - **OpenAI Images API** — cross-provider image generation (DALL-E format → Gemini Imagen)
 - **Extended Config Types** — SDK consumable as a Go library
+- **OAuth Provider Priority** — YAML config controls provider preference; JSON `"priority"` field per-account overrides
 
 ### Additional Providers
 
@@ -60,10 +61,10 @@ Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/
 | Provider | Auth Method | Features |
 |:---------|:-----------|:---------|
 | GitHub Copilot | OAuth | Claude, GPT-5, Codex, Legacy models |
-| Antigravity | Token | Anti-fingerprinting, dynamic versioning |
-| Kiro (AWS) | OAuth | Web search, CodeWhisperer |
+| Antigravity | Token | Anti-fingerprinting, dynamic versioning, priority |
+| Kiro (AWS) | OAuth | Web search, CodeWhisperer, priority |
 | Kilo AI | Device Flow | OpenRouter models, dynamic discovery |
-| Claude | API Key | Request sanitization |
+| Claude | API Key | Request sanitization, priority |
 | Gemini / Vertex | API Key | Turn merging, image generation |
 | Codex | WebSocket | Auto executor registration |
 | OpenAI Compat | API Key | DALL-E / Imagen images |
