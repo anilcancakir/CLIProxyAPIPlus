@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -115,6 +116,11 @@ func (h *OpenAIAPIHandler) ChatCompletions(c *gin.Context) {
 
 	modelName := gjson.GetBytes(rawJSON, "model").String()
 	if overrideEndpoint, ok := resolveEndpointOverride(modelName, openAIChatEndpoint); ok && overrideEndpoint == openAIResponsesEndpoint {
+		// Strip "copilot-" prefix so downstream handlers and executors see the registry name
+		if strings.HasPrefix(strings.ToLower(modelName), "copilot-") {
+			modelName = modelName[len("copilot-"):]
+			rawJSON, _ = sjson.SetBytes(rawJSON, "model", modelName)
+		}
 		originalChat := rawJSON
 		if shouldTreatAsResponsesFormat(rawJSON) {
 			// Already responses-style payload; no conversion needed.

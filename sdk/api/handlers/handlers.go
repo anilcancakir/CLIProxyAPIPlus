@@ -809,6 +809,17 @@ func (h *BaseAPIHandler) getRequestDetails(modelName string) (providers []string
 	if len(providers) == 0 && baseModel != resolvedModelName {
 		providers = util.GetProviderName(resolvedModelName)
 	}
+	// Fallback: strip "copilot-" prefix for models sent with that prefix
+	// (e.g. "copilot-gpt-5.3-codex" → "gpt-5.3-codex") since the registry
+	// stores them without the prefix.
+	if len(providers) == 0 && strings.HasPrefix(strings.ToLower(baseModel), "copilot-") {
+		stripped := baseModel[len("copilot-"):]
+		providers = util.GetProviderName(stripped)
+		if len(providers) > 0 {
+			// Also normalize the model name so downstream sees the registry name
+			resolvedModelName = stripped
+		}
+	}
 
 	if len(providers) == 0 {
 		return nil, "", &interfaces.ErrorMessage{StatusCode: http.StatusBadGateway, Error: fmt.Errorf("unknown provider for model %s", modelName)}

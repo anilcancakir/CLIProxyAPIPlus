@@ -1,6 +1,10 @@
 package openai
 
-import "github.com/router-for-me/CLIProxyAPI/v6/internal/registry"
+import (
+	"strings"
+
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/registry"
+)
 
 const (
 	openAIChatEndpoint      = "/chat/completions"
@@ -11,7 +15,12 @@ func resolveEndpointOverride(modelName, requestedEndpoint string) (string, bool)
 	if modelName == "" {
 		return "", false
 	}
-	info := registry.GetGlobalRegistry().GetModelInfo(modelName, "")
+	// Strip "copilot-" prefix so registry lookup matches (e.g. "copilot-gpt-5.3-codex" → "gpt-5.3-codex")
+	lookupName := strings.TrimPrefix(strings.ToLower(modelName), "copilot-")
+	info := registry.GetGlobalRegistry().GetModelInfo(lookupName, "")
+	if info == nil {
+		info = registry.GetGlobalRegistry().GetModelInfo(modelName, "")
+	}
 	if info == nil || len(info.SupportedEndpoints) == 0 {
 		return "", false
 	}
