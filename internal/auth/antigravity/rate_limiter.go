@@ -142,18 +142,31 @@ model *string,
 ) *RateLimitInfo {
 	var reason RateLimitReason = Unknown
 	lowerBody := strings.ToLower(string(body))
+
+	// 1. Determine base reason from HTTP status.
+	if status >= 500 || status == 404 {
+		reason = ServerError
+	} else if status == 429 {
+		reason = QuotaExhausted
+	}
+
+	// 2. Refine reason based on error body patterns.
 	if strings.Contains(lowerBody, "quota exhausted") {
 		reason = QuotaExhausted
-	} else if strings.Contains(lowerBody, "rate limit exceeded") {
+	} else if strings.Contains(lowerBody, "rate limit exceeded") ||
+		strings.Contains(lowerBody, "per minute") ||
+		strings.Contains(lowerBody, "per second") {
 		reason = RateLimitExceeded
 	} else if strings.Contains(lowerBody, "model capacity") {
 		reason = ModelCapacityExhausted
+	} else if reason == Unknown && len(lowerBody) > 0 {
+		// If we still don't know but have a body, check for generic patterns.
+		if strings.Contains(lowerBody, "error") || strings.Contains(lowerBody, "fail") {
+			reason = ServerError
+		}
 	}
 
-	isServerError := status >= 500 || status == 404
-	if isServerError {
-		reason = ServerError
-	}
+	isServerError := reason == ServerError
 
 
 	var duration time.Duration
