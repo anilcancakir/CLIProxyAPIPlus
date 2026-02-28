@@ -1,6 +1,9 @@
 package antigravity
 
 import (
+	"regexp"
+	"strconv"
+	"sync"
 	"time"
 )
 
@@ -72,6 +75,7 @@ type RateLimiter interface {
 		retryAfterHeader *string,
 		body []byte,
 		model *string,
+		reason RateLimitReason,
 	) *RateLimitInfo
 
 	// MarkSuccess clears any transient rate limit state for the account.
@@ -84,4 +88,255 @@ type RateLimiter interface {
 		reason RateLimitReason,
 		model *string,
 	)
+}
+
+
+type rateLimitEntry struct {
+	info      *RateLimitInfo
+	expiresAt time.Time
+}
+
+type failureEntry struct {
+	count       int
+	lastFailure time.Time
+}
+
+type AntigravityRateLimiter struct {
+	mu           sync.RWMutex
+	limits       map[string]*rateLimitEntry
+	failures     map[string]*failureEntry
+	backoffSteps []time.Duration
+}
+
+var defaultBackoffSteps = []time.Duration{
+	60 * time.Second,
+	300 * time.Second,
+	1800 * time.Second,
+	7200 * time.Second,
+}
+
+func NewAntigravityRateLimiter() *AntigravityRateLimiter {
+	return NewAntigravityRateLimiterWithSteps(defaultBackoffSteps)
+}
+
+func NewAntigravityRateLimiterWithSteps(steps []time.Duration) *AntigravityRateLimiter {
+	return &AntigravityRateLimiter{
+		limits:       make(map[string]*rateLimitEntry),
+		failures:     make(map[string]*failureEntry),
+		backoffSteps: steps,
+	}
+}
+
+func getLimitKey(accountID string, reason RateLimitReason, model *string) string {
+	if reason == QuotaExhausted && model != nil {
+		return accountID + ":" + *model
+	}
+	return accountID
+}
+
+func (rl *AntigravityRateLimiter) ParseFromError(
+	accountID string,
+	status int,
+	retryAfterHeader *string,
+	body []byte,
+	model *string,
+	reason RateLimitReason,
+) *RateLimitInfo {
+	isServerError := status >= 500 || status == 404
+	if isServerError {
+		reason = ServerError
+	}
+
+	var duration time.Duration
+
+	if retryAfterHeader != nil && *retryAfterHeader != "" {
+		if secs, err := strconv.ParseUint(*retryAfterHeader, 10, 64); err == nil {
+			duration = time.Duration(secs) * time.Second
+		}
+	}
+
+	if duration == 0 {
+		duration = extractDurationFromBody(body)
+	}
+
+	if duration == 0 {
+		rl.mu.RLock()
+		duration = rl.defaultDurationForReason(reason, accountID)
+		rl.mu.RUnlock()
+	}
+
+	if duration < 2*time.Second {
+		duration = 2 * time.Second
+	}
+
+	info := &RateLimitInfo{
+		Reason:        reason,
+		RetryAfterSec: uint64(duration.Seconds()),
+		DetectedAt:    time.Now(),
+		Model:         model,
+		ResetTime:     time.Now().Add(duration),
+	}
+
+	key := getLimitKey(accountID, reason, model)
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	rl.limits[key] = &rateLimitEntry{
+		info:      info,
+		expiresAt: time.Now().Add(duration),
+	}
+
+	if !isServerError {
+		rl.incrementFailureCount(accountID)
+	}
+
+	return info
+}
+
+func (rl *AntigravityRateLimiter) defaultDurationForReason(reason RateLimitReason, accountID string) time.Duration {
+	switch reason {
+	case QuotaExhausted:
+		failCount := rl.getFailureCount(accountID)
+		idx := failCount
+		if idx >= len(rl.backoffSteps) {
+			idx = len(rl.backoffSteps) - 1
+		}
+		return rl.backoffSteps[idx]
+	case RateLimitExceeded:
+		return 5 * time.Second
+	case ModelCapacityExhausted:
+		failCount := rl.getFailureCount(accountID)
+		steps := []time.Duration{5 * time.Second, 10 * time.Second, 15 * time.Second}
+		idx := failCount
+		if idx >= len(steps) {
+			idx = len(steps) - 1
+		}
+		return steps[idx]
+	case ServerError:
+		return 8 * time.Second
+	default:
+		return 60 * time.Second
+	}
+}
+
+func extractDurationFromBody(body []byte) time.Duration {
+	s := string(body)
+	if re := regexp.MustCompile(`(\d+)m\s*(\d+)s`); true {
+		if m := re.FindStringSubmatch(s); len(m) == 3 {
+			mins, _ := strconv.Atoi(m[1])
+			secs, _ := strconv.Atoi(m[2])
+			return time.Duration(mins*60+secs) * time.Second
+		}
+	}
+	if re := regexp.MustCompile(`after\s+(\d+)s`); true {
+		if m := re.FindStringSubmatch(s); len(m) == 2 {
+			secs, _ := strconv.Atoi(m[1])
+			return time.Duration(secs) * time.Second
+		}
+	}
+	if re := regexp.MustCompile(`(\d+)\s*second`); true {
+		if m := re.FindStringSubmatch(s); len(m) == 2 {
+			secs, _ := strconv.Atoi(m[1])
+			return time.Duration(secs) * time.Second
+		}
+	}
+	return 0
+}
+
+func (rl *AntigravityRateLimiter) incrementFailureCount(accountID string) {
+	entry := rl.failures[accountID]
+	if entry == nil {
+		entry = &failureEntry{}
+		rl.failures[accountID] = entry
+	}
+	if !entry.lastFailure.IsZero() && time.Since(entry.lastFailure) > time.Hour {
+		entry.count = 0
+	}
+	entry.count++
+	entry.lastFailure = time.Now()
+}
+
+func (rl *AntigravityRateLimiter) getFailureCount(accountID string) int {
+	entry := rl.failures[accountID]
+	if entry == nil {
+		return 0
+	}
+	if !entry.lastFailure.IsZero() && time.Since(entry.lastFailure) > time.Hour {
+		return 0
+	}
+	return entry.count
+}
+
+func (rl *AntigravityRateLimiter) IsRateLimited(accountID string, model *string) bool {
+	rl.mu.RLock()
+	defer rl.mu.RUnlock()
+	now := time.Now()
+
+	if entry, ok := rl.limits[accountID]; ok && entry.expiresAt.After(now) {
+		return true
+	}
+
+	if model != nil {
+		modelKey := accountID + ":" + *model
+		if entry, ok := rl.limits[modelKey]; ok && entry.expiresAt.After(now) {
+			return true
+		}
+	}
+	return false
+}
+
+func (rl *AntigravityRateLimiter) GetRemainingWait(accountID string, model *string) time.Duration {
+	rl.mu.RLock()
+	defer rl.mu.RUnlock()
+	now := time.Now()
+	var longest time.Duration
+
+	if entry, ok := rl.limits[accountID]; ok && entry.expiresAt.After(now) {
+		if d := entry.expiresAt.Sub(now); d > longest {
+			longest = d
+		}
+	}
+	if model != nil {
+		modelKey := accountID + ":" + *model
+		if entry, ok := rl.limits[modelKey]; ok && entry.expiresAt.After(now) {
+			if d := entry.expiresAt.Sub(now); d > longest {
+				longest = d
+			}
+		}
+	}
+	return longest
+}
+
+func (rl *AntigravityRateLimiter) MarkSuccess(accountID string) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	delete(rl.failures, accountID)
+	delete(rl.limits, accountID)
+}
+
+func (rl *AntigravityRateLimiter) SetLockoutUntil(accountID string, resetTime time.Time, reason RateLimitReason, model *string) {
+	key := getLimitKey(accountID, reason, model)
+	info := &RateLimitInfo{
+		Reason:        reason,
+		ResetTime:     resetTime,
+		RetryAfterSec: uint64(time.Until(resetTime).Seconds()),
+		DetectedAt:    time.Now(),
+		Model:         model,
+	}
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	rl.limits[key] = &rateLimitEntry{
+		info:      info,
+		expiresAt: resetTime,
+	}
+}
+
+func (rl *AntigravityRateLimiter) CleanupExpired() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	now := time.Now()
+	for k, v := range rl.limits {
+		if v.expiresAt.Before(now) {
+			delete(rl.limits, k)
+		}
+	}
 }
