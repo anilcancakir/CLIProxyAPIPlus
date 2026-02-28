@@ -119,6 +119,7 @@ oauth-provider-priority:
     claude: 10        # Prefer direct Claude OAuth over antigravity
     antigravity: 0    # Default priority
     kiro: 5           # Medium priority
+pprof:
     enable: false
     addr: 127.0.0.1:8316
 error-logs-max-files: 10
