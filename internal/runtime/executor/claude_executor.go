@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -42,6 +43,21 @@ type ClaudeExecutor struct {
 // claudeToolPrefix is empty to match real Claude Code behavior (no tool name prefix).
 // Previously "proxy_" was used but this is a detectable fingerprint difference.
 const claudeToolPrefix = ""
+
+// Singleton quota checker initialized once on first use.
+var (
+	claudeQuotaCheckerOnce sync.Once
+	claudeQuotaChecker     *claudeauth.ClaudeQuotaChecker
+)
+
+// getClaudeQuotaChecker returns the package-level ClaudeQuotaChecker singleton.
+func getClaudeQuotaChecker(cfg *config.Config) *claudeauth.ClaudeQuotaChecker {
+	claudeQuotaCheckerOnce.Do(func() {
+		httpClient := newProxyAwareHTTPClient(context.Background(), cfg, nil, 0)
+		claudeQuotaChecker = claudeauth.NewClaudeQuotaChecker(httpClient)
+	})
+	return claudeQuotaChecker
+}
 
 func NewClaudeExecutor(cfg *config.Config) *ClaudeExecutor { return &ClaudeExecutor{cfg: cfg} }
 
@@ -98,6 +114,20 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	apiKey, baseURL := claudeCreds(auth)
 	if baseURL == "" {
 		baseURL = "https://api.anthropic.com"
+	}
+
+	// Fire-and-forget: refresh quota cache for the management UI without blocking.
+	if auth != nil && auth.Metadata != nil {
+		accessToken, _ := auth.Metadata["access_token"].(string)
+		accountID := auth.ID
+		if accessToken != "" && accountID != "" {
+			qChecker := getClaudeQuotaChecker(e.cfg)
+			go func() {
+				ctx2, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				_, _ = qChecker.FetchQuota(ctx2, accessToken, accountID)
+			}()
+		}
 	}
 
 	reporter := newUsageReporter(ctx, e.Identifier(), baseModel, auth)
