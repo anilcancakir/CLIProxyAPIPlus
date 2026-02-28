@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -259,9 +260,25 @@ func (s *FileTokenStore) readAuthFile(path, baseDir string) (*cliproxyauth.Auth,
 		LastRefreshedAt:  time.Time{},
 		NextRefreshAfter: nextRefreshAfter,
 	}
+
 	if email, ok := metadata["email"].(string); ok && email != "" {
 		auth.Attributes["email"] = email
 	}
+
+	if rawPriority, ok := metadata["priority"]; ok {
+		switch v := rawPriority.(type) {
+		case float64:
+			auth.Attributes["priority"] = strconv.Itoa(int(v))
+		case int:
+			auth.Attributes["priority"] = strconv.Itoa(v)
+		case string:
+			priority := strings.TrimSpace(v)
+			if _, errAtoi := strconv.Atoi(priority); errAtoi == nil {
+				auth.Attributes["priority"] = priority
+			}
+		}
+	}
+
 	return auth, nil
 }
 

@@ -1,6 +1,11 @@
 package auth
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestExtractAccessToken(t *testing.T) {
 	t.Parallel()
@@ -74,6 +79,100 @@ func TestExtractAccessToken(t *testing.T) {
 			got := extractAccessToken(tt.metadata)
 			if got != tt.expected {
 				t.Errorf("extractAccessToken() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFilestore_ReadAuthFile_Priority(t *testing.T) {
+	tempDir := t.TempDir()
+	store := NewFileTokenStore()
+	store.SetBaseDir(tempDir)
+
+	tests := []struct {
+		name             string
+		metadata         map[string]any
+		expectedPriority string
+		priorityPresent  bool
+	}{
+		{
+			name: "priority as integer 10",
+			metadata: map[string]any{
+				"type":     "copilot",
+				"priority": 10,
+			},
+			expectedPriority: "10",
+			priorityPresent:  true,
+		},
+		{
+			name: "priority as float 10.0",
+			metadata: map[string]any{
+				"type":     "copilot",
+				"priority": 10.0,
+			},
+			expectedPriority: "10",
+			priorityPresent:  true,
+		},
+		{
+			name: "priority as string 5",
+			metadata: map[string]any{
+				"type":     "copilot",
+				"priority": "5",
+			},
+			expectedPriority: "5",
+			priorityPresent:  true,
+		},
+		{
+			name: "priority as explicit zero",
+			metadata: map[string]any{
+				"type":     "copilot",
+				"priority": 0,
+			},
+			expectedPriority: "0",
+			priorityPresent:  true,
+		},
+		{
+			name: "priority as negative value",
+			metadata: map[string]any{
+				"type":     "copilot",
+				"priority": -3,
+			},
+			expectedPriority: "-3",
+			priorityPresent:  true,
+		},
+		{
+			name: "missing priority key",
+			metadata: map[string]any{
+				"type": "copilot",
+			},
+			expectedPriority: "",
+			priorityPresent:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filename := filepath.Join(tempDir, tt.name+".json")
+			data, _ := json.Marshal(tt.metadata)
+			_ = os.WriteFile(filename, data, 0644)
+
+			auth, err := store.readAuthFile(filename, tempDir)
+			if err != nil {
+				t.Fatalf("failed to read auth file: %v", err)
+			}
+
+			priority, ok := auth.Attributes["priority"]
+			if tt.priorityPresent {
+				if !ok {
+					t.Errorf("expected priority attribute to be present")
+				}
+				if priority != tt.expectedPriority {
+					t.Errorf("expected priority %q, got %q", tt.expectedPriority, priority)
+				}
+			} else {
+				if ok {
+					t.Errorf("expected priority attribute to be absent, got %q", priority)
+				}
 			}
 		})
 	}
