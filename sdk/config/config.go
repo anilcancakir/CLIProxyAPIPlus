@@ -28,6 +28,18 @@ type VertexCompatModel = internalconfig.VertexCompatModel
 type OpenAICompatibility = internalconfig.OpenAICompatibility
 type OpenAICompatibilityAPIKey = internalconfig.OpenAICompatibilityAPIKey
 type OpenAICompatibilityModel = internalconfig.OpenAICompatibilityModel
+type RoutingConfig = internalconfig.RoutingConfig
+type AmpModelMapping = internalconfig.AmpModelMapping
+type QuotaExceeded = internalconfig.QuotaExceeded
+type PprofConfig = internalconfig.PprofConfig
+type CloakConfig = internalconfig.CloakConfig
+type GeminiModel = internalconfig.GeminiModel
+type ClaudeModel = internalconfig.ClaudeModel
+type CodexModel = internalconfig.CodexModel
+type KiroKey = internalconfig.KiroKey
+type KiroFingerprintConfig = internalconfig.KiroFingerprintConfig
+type ClaudeHeaderDefaults = internalconfig.ClaudeHeaderDefaults
+type AmpUpstreamAPIKeyEntry = internalconfig.AmpUpstreamAPIKeyEntry
 
 type TLS = internalconfig.TLSConfig
 
