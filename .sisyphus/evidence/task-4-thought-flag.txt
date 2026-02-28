@@ -1,0 +1,17 @@
+//   - []byte: The transformed request data in Gemini CLI API format
+func ConvertClaudeRequestToAntigravity(modelName string, inputRawJSON []byte, _ bool) []byte {
+	enableThoughtTranslate := true
+	rawJSON := inputRawJSON
+
+--
+						if isUnsigned {
+							// log.Debugf("Dropping unsigned thinking block (no valid signature)")
+							enableThoughtTranslate = false
+							continue
+						}
+--
+
+	// Map Anthropic thinking -> Gemini thinkingBudget/include_thoughts when type==enabled
+	if t := gjson.GetBytes(rawJSON, "thinking"); enableThoughtTranslate && t.Exists() && t.IsObject() {
+		switch t.Get("type").String() {
+		case "enabled":
