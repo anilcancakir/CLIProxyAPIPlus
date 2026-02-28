@@ -38,6 +38,13 @@ type QuotaData struct {
 	IsForbidden bool `json:"is_forbidden"`
 }
 
+// StoreQuota directly stores quota data in the cache for the given accountID.
+func (c *AntigravityQuotaChecker) StoreQuota(accountID string, data *QuotaData) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cache[accountID] = data
+}
+
 /**
  * AddModel appends a ModelQuota to the QuotaData's Models slice.
  *

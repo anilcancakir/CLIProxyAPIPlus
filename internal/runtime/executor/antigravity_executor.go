@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/auth/antigravity"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/thinking"
@@ -58,6 +59,30 @@ const (
 	antigravityVersionRefresh = 12 * time.Hour
 )
 
+
+// Singleton instances initialized once on first use.
+var (
+	antigravityQuotaCheckerOnce sync.Once
+	antigravityQuotaChecker     *antigravity.AntigravityQuotaChecker
+
+	antigravityRateLimiterOnce sync.Once
+	antigravityRateLimiter     *antigravity.AntigravityRateLimiter
+)
+func getAntigravityQuotaChecker(cfg *config.Config) *antigravity.AntigravityQuotaChecker {
+	antigravityQuotaCheckerOnce.Do(func() {
+		httpClient := newProxyAwareHTTPClient(context.Background(), cfg, nil, 0)
+		antigravityQuotaChecker = antigravity.NewAntigravityQuotaChecker(httpClient)
+	})
+	return antigravityQuotaChecker
+}
+
+func getAntigravityRateLimiter() *antigravity.AntigravityRateLimiter {
+	antigravityRateLimiterOnce.Do(func() {
+		antigravityRateLimiter = antigravity.NewAntigravityRateLimiter()
+	})
+	return antigravityRateLimiter
+}
+
 var (
 	randSource      = rand.New(rand.NewSource(time.Now().UnixNano()))
 	randSourceMutex sync.Mutex
@@ -84,7 +109,6 @@ var (
 		models []*registry.ModelInfo
 	}
 )
-
 func cloneAntigravityModels(models []*registry.ModelInfo) []*registry.ModelInfo {
 	if len(models) == 0 {
 		return nil
@@ -398,12 +422,28 @@ attemptLoop:
 					if retryAfter, parseErr := parseRetryDelay(bodyBytes); parseErr == nil && retryAfter != nil {
 						sErr.retryAfter = retryAfter
 					}
+					authID := metaStringValue(auth.Metadata, "account_id")
+					if authID == "" {
+						authID = metaStringValue(auth.Metadata, "email")
+					}
+					reason := parseRateLimitReason(bodyBytes)
+					retryHdr := httpResp.Header.Get("Retry-After")
+					var retryHdrPtr *string
+					if retryHdr != "" {
+						retryHdrPtr = &retryHdr
+					}
+					getAntigravityRateLimiter().ParseFromError(authID, httpResp.StatusCode, retryHdrPtr, bodyBytes, nil, reason)
 				}
 				err = sErr
 				return resp, err
 			}
 
 			reporter.publish(ctx, parseAntigravityUsage(bodyBytes))
+			authID := metaStringValue(auth.Metadata, "account_id")
+			if authID == "" {
+				authID = metaStringValue(auth.Metadata, "email")
+			}
+			getAntigravityRateLimiter().MarkSuccess(authID)
 			var param any
 			converted := sdktranslator.TranslateNonStream(ctx, to, from, req.Model, opts.OriginalRequest, translated, bodyBytes, &param)
 			resp = cliproxyexecutor.Response{Payload: []byte(converted), Headers: httpResp.Header.Clone()}
@@ -418,6 +458,12 @@ attemptLoop:
 				if retryAfter, parseErr := parseRetryDelay(lastBody); parseErr == nil && retryAfter != nil {
 					sErr.retryAfter = retryAfter
 				}
+				authID := metaStringValue(auth.Metadata, "account_id")
+				if authID == "" {
+					authID = metaStringValue(auth.Metadata, "email")
+				}
+				reason := parseRateLimitReason(lastBody)
+				getAntigravityRateLimiter().ParseFromError(authID, lastStatus, nil, lastBody, nil, reason)
 			}
 			err = sErr
 		case lastErr != nil:
@@ -552,12 +598,28 @@ attemptLoop:
 					if retryAfter, parseErr := parseRetryDelay(bodyBytes); parseErr == nil && retryAfter != nil {
 						sErr.retryAfter = retryAfter
 					}
+					authID := metaStringValue(auth.Metadata, "account_id")
+					if authID == "" {
+						authID = metaStringValue(auth.Metadata, "email")
+					}
+					reason := parseRateLimitReason(bodyBytes)
+					retryHdr := httpResp.Header.Get("Retry-After")
+					var retryHdrPtr *string
+					if retryHdr != "" {
+						retryHdrPtr = &retryHdr
+					}
+					getAntigravityRateLimiter().ParseFromError(authID, httpResp.StatusCode, retryHdrPtr, bodyBytes, nil, reason)
 				}
 				err = sErr
 				return resp, err
 			}
 
 			out := make(chan cliproxyexecutor.StreamChunk)
+			authID := metaStringValue(auth.Metadata, "account_id")
+			if authID == "" {
+				authID = metaStringValue(auth.Metadata, "email")
+			}
+			getAntigravityRateLimiter().MarkSuccess(authID)
 			go func(resp *http.Response) {
 				defer close(out)
 				defer func() {
@@ -608,6 +670,11 @@ attemptLoop:
 			resp = cliproxyexecutor.Response{Payload: e.convertStreamToNonStream(buffer.Bytes())}
 
 			reporter.publish(ctx, parseAntigravityUsage(resp.Payload))
+			authID = metaStringValue(auth.Metadata, "account_id")
+			if authID == "" {
+				authID = metaStringValue(auth.Metadata, "email")
+			}
+			getAntigravityRateLimiter().MarkSuccess(authID)
 			var param any
 			converted := sdktranslator.TranslateNonStream(ctx, to, from, req.Model, opts.OriginalRequest, translated, resp.Payload, &param)
 			resp = cliproxyexecutor.Response{Payload: []byte(converted), Headers: httpResp.Header.Clone()}
@@ -623,6 +690,12 @@ attemptLoop:
 				if retryAfter, parseErr := parseRetryDelay(lastBody); parseErr == nil && retryAfter != nil {
 					sErr.retryAfter = retryAfter
 				}
+				authID := metaStringValue(auth.Metadata, "account_id")
+				if authID == "" {
+					authID = metaStringValue(auth.Metadata, "email")
+				}
+				reason := parseRateLimitReason(lastBody)
+				getAntigravityRateLimiter().ParseFromError(authID, lastStatus, nil, lastBody, nil, reason)
 			}
 			err = sErr
 		case lastErr != nil:
@@ -943,12 +1016,28 @@ attemptLoop:
 					if retryAfter, parseErr := parseRetryDelay(bodyBytes); parseErr == nil && retryAfter != nil {
 						sErr.retryAfter = retryAfter
 					}
+					authID := metaStringValue(auth.Metadata, "account_id")
+					if authID == "" {
+						authID = metaStringValue(auth.Metadata, "email")
+					}
+					reason := parseRateLimitReason(bodyBytes)
+					retryHdr := httpResp.Header.Get("Retry-After")
+					var retryHdrPtr *string
+					if retryHdr != "" {
+						retryHdrPtr = &retryHdr
+					}
+					getAntigravityRateLimiter().ParseFromError(authID, httpResp.StatusCode, retryHdrPtr, bodyBytes, nil, reason)
 				}
 				err = sErr
 				return nil, err
 			}
 
 			out := make(chan cliproxyexecutor.StreamChunk)
+			authID := metaStringValue(auth.Metadata, "account_id")
+			if authID == "" {
+				authID = metaStringValue(auth.Metadata, "email")
+			}
+			getAntigravityRateLimiter().MarkSuccess(authID)
 			go func(resp *http.Response) {
 				defer close(out)
 				defer func() {
@@ -1003,6 +1092,12 @@ attemptLoop:
 				if retryAfter, parseErr := parseRetryDelay(lastBody); parseErr == nil && retryAfter != nil {
 					sErr.retryAfter = retryAfter
 				}
+				authID := metaStringValue(auth.Metadata, "account_id")
+				if authID == "" {
+					authID = metaStringValue(auth.Metadata, "email")
+				}
+				reason := parseRateLimitReason(lastBody)
+				getAntigravityRateLimiter().ParseFromError(authID, lastStatus, nil, lastBody, nil, reason)
 			}
 			err = sErr
 		case lastErr != nil:
@@ -1156,6 +1251,17 @@ func (e *AntigravityExecutor) CountTokens(ctx context.Context, auth *cliproxyaut
 			if retryAfter, parseErr := parseRetryDelay(bodyBytes); parseErr == nil && retryAfter != nil {
 				sErr.retryAfter = retryAfter
 			}
+			authID := metaStringValue(auth.Metadata, "account_id")
+			if authID == "" {
+				authID = metaStringValue(auth.Metadata, "email")
+			}
+			reason := parseRateLimitReason(bodyBytes)
+			retryHdr := httpResp.Header.Get("Retry-After")
+			var retryHdrPtr *string
+			if retryHdr != "" {
+				retryHdrPtr = &retryHdr
+			}
+			getAntigravityRateLimiter().ParseFromError(authID, httpResp.StatusCode, retryHdrPtr, bodyBytes, nil, reason)
 		}
 		return cliproxyexecutor.Response{}, sErr
 	}
@@ -1167,6 +1273,12 @@ func (e *AntigravityExecutor) CountTokens(ctx context.Context, auth *cliproxyaut
 			if retryAfter, parseErr := parseRetryDelay(lastBody); parseErr == nil && retryAfter != nil {
 				sErr.retryAfter = retryAfter
 			}
+			authID := metaStringValue(auth.Metadata, "account_id")
+			if authID == "" {
+				authID = metaStringValue(auth.Metadata, "email")
+			}
+			reason := parseRateLimitReason(lastBody)
+			getAntigravityRateLimiter().ParseFromError(authID, lastStatus, nil, lastBody, nil, reason)
 		}
 		return cliproxyexecutor.Response{}, sErr
 	case lastErr != nil:
@@ -1297,6 +1409,38 @@ func FetchAntigravityModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *c
 			log.Debug("antigravity executor: fetched empty model list; retaining cached primary model list")
 			return fallbackAntigravityPrimaryModels()
 		}
+
+		// Cache quota info extracted from model metadata.
+		qChecker := getAntigravityQuotaChecker(cfg)
+		quotaModels := make([]antigravity.ModelQuota, 0)
+		for modelName, modelData := range result.Map() {
+			remainingFraction := modelData.Get("quotaInfo.remainingFraction").Float()
+			resetTimeStr := modelData.Get("quotaInfo.resetTime").String()
+			var resetTime time.Time
+			if resetTimeStr != "" {
+				if pt, ptErr := time.Parse(time.RFC3339, resetTimeStr); ptErr == nil {
+					resetTime = pt
+				}
+			}
+			quotaModels = append(quotaModels, antigravity.ModelQuota{
+				Name:              modelName,
+				DisplayName:       modelData.Get("displayName").String(),
+				RemainingFraction: remainingFraction,
+				RemainingPercent:  remainingFraction * 100,
+				ResetTime:         resetTime,
+			})
+		}
+		if len(quotaModels) > 0 {
+			accountID := metaStringValue(auth.Metadata, "account_id")
+			if accountID == "" {
+				accountID = metaStringValue(auth.Metadata, "email")
+			}
+			qChecker.StoreQuota(accountID, &antigravity.QuotaData{
+				Models:      quotaModels,
+				LastUpdated: time.Now(),
+			})
+		}
+
 		storeAntigravityPrimaryModels(models)
 		return models
 	}
@@ -1370,6 +1514,17 @@ func (e *AntigravityExecutor) refreshToken(ctx context.Context, auth *cliproxyau
 			if retryAfter, parseErr := parseRetryDelay(bodyBytes); parseErr == nil && retryAfter != nil {
 				sErr.retryAfter = retryAfter
 			}
+			authID := metaStringValue(auth.Metadata, "account_id")
+			if authID == "" {
+				authID = metaStringValue(auth.Metadata, "email")
+			}
+			reason := parseRateLimitReason(bodyBytes)
+			retryHdr := httpResp.Header.Get("Retry-After")
+			var retryHdrPtr *string
+			if retryHdr != "" {
+				retryHdrPtr = &retryHdr
+			}
+			getAntigravityRateLimiter().ParseFromError(authID, httpResp.StatusCode, retryHdrPtr, bodyBytes, nil, reason)
 		}
 		return auth, sErr
 	}
