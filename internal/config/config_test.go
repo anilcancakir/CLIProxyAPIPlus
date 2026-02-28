@@ -64,3 +64,77 @@ oauth-provider-priority:
 		t.Errorf("expected priority 0 for claude, got %d (ok: %v)", val, ok)
 	}
 }
+
+func TestConfig_QuotaExceeded_ClaudeQuotaThresholds_ParsesFromYAML(
+	t *testing.T,
+) {
+	yamlData := `
+quota-exceeded:
+  switch-project: true
+  switch-preview-model: false
+  fallback-models:
+    "claude-opus-4-5-20251101": "claude-sonnet-4-5-20250929"
+  claude-quota-threshold:
+    "claude-opus-4-5-20251101": 80.5
+    "claude-sonnet-4-5-20250929": 95.0
+`
+	var cfg Config
+	err := yaml.Unmarshal([]byte(yamlData), &cfg)
+	if err != nil {
+		t.Fatalf("failed to unmarshal yaml: %v", err)
+	}
+
+	expected := map[string]float64{
+		"claude-opus-4-5-20251101":    80.5,
+		"claude-sonnet-4-5-20250929": 95.0,
+	}
+
+	if !reflect.DeepEqual(cfg.QuotaExceeded.ClaudeQuotaThresholds, expected) {
+		t.Errorf(
+			"expected ClaudeQuotaThresholds %v, got %v",
+			expected,
+			cfg.QuotaExceeded.ClaudeQuotaThresholds,
+		)
+	}
+}
+
+func TestConfig_QuotaExceeded_ClaudeQuotaThresholds_Missing(
+	t *testing.T,
+) {
+	yamlData := `
+port: 8080
+`
+	var cfg Config
+	err := yaml.Unmarshal([]byte(yamlData), &cfg)
+	if err != nil {
+		t.Fatalf("failed to unmarshal yaml: %v", err)
+	}
+
+	if cfg.QuotaExceeded.ClaudeQuotaThresholds != nil {
+		t.Errorf(
+			"expected ClaudeQuotaThresholds to be nil, got %v",
+			cfg.QuotaExceeded.ClaudeQuotaThresholds,
+		)
+	}
+}
+
+func TestConfig_QuotaExceeded_ClaudeQuotaThresholds_EmptySection(
+	t *testing.T,
+) {
+	yamlData := `
+quota-exceeded:
+  switch-project: true
+`
+	var cfg Config
+	err := yaml.Unmarshal([]byte(yamlData), &cfg)
+	if err != nil {
+		t.Fatalf("failed to unmarshal yaml: %v", err)
+	}
+
+	if cfg.QuotaExceeded.ClaudeQuotaThresholds != nil {
+		t.Errorf(
+			"expected ClaudeQuotaThresholds to be nil when not specified, got %v",
+			cfg.QuotaExceeded.ClaudeQuotaThresholds,
+		)
+	}
+}

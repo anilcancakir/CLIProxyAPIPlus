@@ -195,6 +195,12 @@ type QuotaExceeded struct {
 	SwitchPreviewModel bool `yaml:"switch-preview-model" json:"switch-preview-model"`
 
 	FallbackModels map[string]string `yaml:"fallback-models" json:"fallback-models"`
+
+	// ClaudeQuotaThresholds defines per-model utilization thresholds (0-100) for quota-aware failover.
+	// Keys are model identifiers (e.g., "claude-opus-4-5-20251101").
+	// Values are float64 percentages (e.g., 80.5 means trigger failover at 80.5% utilization).
+	// Nested under quota-exceeded section; optional. If not specified, no threshold-based logic applies.
+	ClaudeQuotaThresholds map[string]float64 `yaml:"claude-quota-threshold" json:"claude-quota-threshold"`
 }
 
 // RoutingConfig configures how credentials are selected for requests.

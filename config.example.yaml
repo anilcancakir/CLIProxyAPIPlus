@@ -94,6 +94,12 @@ quota-exceeded:
   # fallback-models:
   #   "claude-3-opus-20240229": "claude-3-sonnet-20240229"
   #   "gpt-4": "gpt-3.5-turbo"
+  # claude-quota-threshold defines per-model utilization thresholds (0-100) for quota-aware failover.
+  # When a model's quota utilization exceeds the threshold, automatic fallback is triggered.
+  # Example: trigger fallback when Opus reaches 80.5% and Sonnet reaches 95% utilization.
+  # claude-quota-threshold:
+  #   "claude-opus-4-5-20251101": 80.5
+  #   "claude-sonnet-4-5-20250929": 95.0
 
 # Routing strategy for selecting credentials when multiple match.
 routing:
