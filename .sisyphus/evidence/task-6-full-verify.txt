@@ -1,0 +1,15 @@
+=== MUST HAVE VERIFICATION ===
+internal/runtime/executor/github_copilot_executor.go
+internal/runtime/executor/antigravity_executor.go
+internal/translator/antigravity/gemini/antigravity_gemini_request.go
+internal/translator/claude/openai/chat-completions/claude_openai_response.go
+.github/workflows/sync-and-build.yml
+config.example.custom.yaml
+example.opencode.json
+=== MUST NOT HAVE ===
+lemon07r in docker-compose: 0
+lemon-port comments:        0
+=== BUILD ===
+BUILD: PASS
+=== VET ===
+VET: PASS
