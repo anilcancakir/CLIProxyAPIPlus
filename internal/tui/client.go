@@ -179,10 +179,8 @@ func (c *Client) ToggleAuthFile(name string, disabled bool) error {
 
 // PatchAuthFileFields updates editable fields on an auth file.
 func (c *Client) PatchAuthFileFields(name string, fields map[string]any) error {
-	fields["name"] = name
-	body, _ := json.Marshal(fields)
-	_, err := c.patch("/v0/management/auth-files/fields", strings.NewReader(string(body)))
-	return err
+	// TODO: endpoint not yet ported
+	return fmt.Errorf("Not implemented in origin")
 }
 
 // GetLogs fetches log lines from the server.

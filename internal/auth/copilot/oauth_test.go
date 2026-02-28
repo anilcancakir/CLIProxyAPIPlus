@@ -27,8 +27,9 @@ func newTestClient(srv *httptest.Server) *http.Client {
 	}
 }
 
-// TestFetchUserInfo_FullProfile verifies that FetchUserInfo returns login, email, and name.
-func TestFetchUserInfo_FullProfile(t *testing.T) {
+// TestFetchUserInfo_ReturnsLogin verifies that FetchUserInfo returns the login string.
+// Origin's FetchUserInfo returns (string, error) — only the login field.
+func TestFetchUserInfo_ReturnsLogin(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -44,43 +45,12 @@ func TestFetchUserInfo_FullProfile(t *testing.T) {
 	defer srv.Close()
 
 	client := &DeviceFlowClient{httpClient: newTestClient(srv)}
-	info, err := client.FetchUserInfo(context.Background(), "test-token")
+	login, err := client.FetchUserInfo(context.Background(), "test-token")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if info.Login != "octocat" {
-		t.Errorf("Login: got %q, want %q", info.Login, "octocat")
-	}
-	if info.Email != "octocat@github.com" {
-		t.Errorf("Email: got %q, want %q", info.Email, "octocat@github.com")
-	}
-	if info.Name != "The Octocat" {
-		t.Errorf("Name: got %q, want %q", info.Name, "The Octocat")
-	}
-}
-
-// TestFetchUserInfo_EmptyEmail verifies graceful handling when email is absent (private account).
-func TestFetchUserInfo_EmptyEmail(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		// GitHub returns null for private emails.
-		_, _ = w.Write([]byte(`{"login":"privateuser","email":null,"name":"Private User"}`))
-	}))
-	defer srv.Close()
-
-	client := &DeviceFlowClient{httpClient: newTestClient(srv)}
-	info, err := client.FetchUserInfo(context.Background(), "test-token")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if info.Login != "privateuser" {
-		t.Errorf("Login: got %q, want %q", info.Login, "privateuser")
-	}
-	if info.Email != "" {
-		t.Errorf("Email: got %q, want empty string", info.Email)
-	}
-	if info.Name != "Private User" {
-		t.Errorf("Name: got %q, want %q", info.Name, "Private User")
+	if login != "octocat" {
+		t.Errorf("Login: got %q, want %q", login, "octocat")
 	}
 }
 
@@ -123,15 +93,13 @@ func TestFetchUserInfo_HTTPError(t *testing.T) {
 	}
 }
 
-// TestCopilotTokenStorage_EmailNameFields verifies Email and Name serialise correctly.
-func TestCopilotTokenStorage_EmailNameFields(t *testing.T) {
+// TestCopilotTokenStorage_BasicFields verifies token storage fields serialise correctly.
+func TestCopilotTokenStorage_BasicFields(t *testing.T) {
 	ts := &CopilotTokenStorage{
 		AccessToken: "ghu_abc",
 		TokenType:   "bearer",
 		Scope:       "read:user user:email",
 		Username:    "octocat",
-		Email:       "octocat@github.com",
-		Name:        "The Octocat",
 		Type:        "github-copilot",
 	}
 
@@ -145,69 +113,26 @@ func TestCopilotTokenStorage_EmailNameFields(t *testing.T) {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
-	for _, key := range []string{"access_token", "username", "email", "name", "type"} {
+	for _, key := range []string{"access_token", "username", "type"} {
 		if _, ok := out[key]; !ok {
 			t.Errorf("expected key %q in JSON output, not found", key)
 		}
 	}
-	if out["email"] != "octocat@github.com" {
-		t.Errorf("email: got %v, want %q", out["email"], "octocat@github.com")
-	}
-	if out["name"] != "The Octocat" {
-		t.Errorf("name: got %v, want %q", out["name"], "The Octocat")
+	if out["access_token"] != "ghu_abc" {
+		t.Errorf("access_token: got %v, want %q", out["access_token"], "ghu_abc")
 	}
 }
 
-// TestCopilotTokenStorage_OmitEmptyEmailName verifies email/name are omitted when empty (omitempty).
-func TestCopilotTokenStorage_OmitEmptyEmailName(t *testing.T) {
-	ts := &CopilotTokenStorage{
-		AccessToken: "ghu_abc",
-		Username:    "octocat",
-		Type:        "github-copilot",
-	}
-
-	data, err := json.Marshal(ts)
-	if err != nil {
-		t.Fatalf("marshal error: %v", err)
-	}
-
-	var out map[string]any
-	if err = json.Unmarshal(data, &out); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
-	}
-
-	if _, ok := out["email"]; ok {
-		t.Error("email key should be omitted when empty (omitempty), but was present")
-	}
-	if _, ok := out["name"]; ok {
-		t.Error("name key should be omitted when empty (omitempty), but was present")
-	}
-}
-
-// TestCopilotAuthBundle_EmailNameFields verifies bundle carries email and name through the pipeline.
-func TestCopilotAuthBundle_EmailNameFields(t *testing.T) {
+// TestCopilotAuthBundle_Fields verifies bundle carries username through the pipeline.
+func TestCopilotAuthBundle_Fields(t *testing.T) {
 	bundle := &CopilotAuthBundle{
 		TokenData: &CopilotTokenData{AccessToken: "ghu_abc"},
 		Username:  "octocat",
-		Email:     "octocat@github.com",
-		Name:      "The Octocat",
 	}
-	if bundle.Email != "octocat@github.com" {
-		t.Errorf("bundle.Email: got %q, want %q", bundle.Email, "octocat@github.com")
+	if bundle.Username != "octocat" {
+		t.Errorf("bundle.Username: got %q, want %q", bundle.Username, "octocat")
 	}
-	if bundle.Name != "The Octocat" {
-		t.Errorf("bundle.Name: got %q, want %q", bundle.Name, "The Octocat")
-	}
-}
-
-// TestGitHubUserInfo_Struct verifies the exported GitHubUserInfo struct fields are accessible.
-func TestGitHubUserInfo_Struct(t *testing.T) {
-	info := GitHubUserInfo{
-		Login: "octocat",
-		Email: "octocat@github.com",
-		Name:  "The Octocat",
-	}
-	if info.Login == "" || info.Email == "" || info.Name == "" {
-		t.Error("GitHubUserInfo fields should not be empty")
+	if bundle.TokenData == nil || bundle.TokenData.AccessToken != "ghu_abc" {
+		t.Errorf("bundle.TokenData.AccessToken: got unexpected value")
 	}
 }

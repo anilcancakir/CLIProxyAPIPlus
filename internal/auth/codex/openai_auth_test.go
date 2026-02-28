@@ -15,7 +15,12 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func TestRefreshTokensWithRetry_NonRetryableOnlyAttemptsOnce(t *testing.T) {
+// TestRefreshTokensWithRetry_ReturnsErrorAfterMaxRetries verifies that RefreshTokensWithRetry
+// returns an error and exhausts all retry attempts before giving up.
+// NOTE: Origin's implementation retries all maxRetries times regardless of error type.
+// The fork added early-exit for specific error codes; that behaviour is not in origin.
+func TestRefreshTokensWithRetry_ReturnsErrorAfterMaxRetries(t *testing.T) {
+	const maxRetries = 2
 	var calls int32
 	auth := &CodexAuth{
 		httpClient: &http.Client{
@@ -31,14 +36,14 @@ func TestRefreshTokensWithRetry_NonRetryableOnlyAttemptsOnce(t *testing.T) {
 		},
 	}
 
-	_, err := auth.RefreshTokensWithRetry(context.Background(), "dummy_refresh_token", 3)
+	_, err := auth.RefreshTokensWithRetry(context.Background(), "dummy_refresh_token", maxRetries)
 	if err == nil {
-		t.Fatalf("expected error for non-retryable refresh failure")
+		t.Fatalf("expected error for failed refresh, got nil")
 	}
-	if !strings.Contains(strings.ToLower(err.Error()), "refresh_token_reused") {
-		t.Fatalf("expected refresh_token_reused in error, got: %v", err)
+	if !strings.Contains(strings.ToLower(err.Error()), "400") {
+		t.Fatalf("expected HTTP 400 status in error, got: %v", err)
 	}
-	if got := atomic.LoadInt32(&calls); got != 1 {
-		t.Fatalf("expected 1 refresh attempt, got %d", got)
+	if got := atomic.LoadInt32(&calls); got != maxRetries {
+		t.Fatalf("expected %d refresh attempts (maxRetries), got %d", maxRetries, got)
 	}
 }

@@ -1,5 +1,9 @@
 package middleware
 
+// NOTE: The fork added requestBodyOverrideContextKey and extractRequestBody
+// that do not exist in this origin repo. Tests below are adapted to test
+// ResponseWriterWrapper and RequestInfo construction which DO exist.
+
 import (
 	"net/http/httptest"
 	"testing"
@@ -7,37 +11,42 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestExtractRequestBodyPrefersOverride(t *testing.T) {
+func TestNewResponseWriterWrapper_InitializesCorrectly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 
-	wrapper := &ResponseWriterWrapper{
-		requestInfo: &RequestInfo{Body: []byte("original-body")},
-	}
+	info := &RequestInfo{Body: []byte("test-body")}
+	wrapper := NewResponseWriterWrapper(c.Writer, nil, info)
 
-	body := wrapper.extractRequestBody(c)
-	if string(body) != "original-body" {
-		t.Fatalf("request body = %q, want %q", string(body), "original-body")
+	if wrapper == nil {
+		t.Fatal("expected non-nil ResponseWriterWrapper")
 	}
-
-	c.Set(requestBodyOverrideContextKey, []byte("override-body"))
-	body = wrapper.extractRequestBody(c)
-	if string(body) != "override-body" {
-		t.Fatalf("request body = %q, want %q", string(body), "override-body")
+	if wrapper.requestInfo == nil {
+		t.Fatal("expected non-nil requestInfo")
+	}
+	if string(wrapper.requestInfo.Body) != "test-body" {
+		t.Fatalf("requestInfo.Body: got %q, want %q", string(wrapper.requestInfo.Body), "test-body")
 	}
 }
 
-func TestExtractRequestBodySupportsStringOverride(t *testing.T) {
+func TestResponseWriterWrapper_ShouldBufferResponseBody_LogOnErrorOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 
-	wrapper := &ResponseWriterWrapper{}
-	c.Set(requestBodyOverrideContextKey, "override-as-string")
+	wrapper := NewResponseWriterWrapper(c.Writer, nil, &RequestInfo{})
+	wrapper.logOnErrorOnly = true
 
-	body := wrapper.extractRequestBody(c)
-	if string(body) != "override-as-string" {
-		t.Fatalf("request body = %q, want %q", string(body), "override-as-string")
+	// With status code 0 (not yet set) and logOnErrorOnly, shouldBufferResponseBody depends on status.
+	// The default recorder returns 200 via Status() — which is < 400, so should NOT buffer.
+	if wrapper.shouldBufferResponseBody() {
+		t.Fatal("expected shouldBufferResponseBody to be false for 2xx status with logOnErrorOnly")
+	}
+
+	// Simulate an error status code
+	wrapper.statusCode = 500
+	if !wrapper.shouldBufferResponseBody() {
+		t.Fatal("expected shouldBufferResponseBody to be true for 5xx status with logOnErrorOnly")
 	}
 }

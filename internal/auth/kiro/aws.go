@@ -491,9 +491,9 @@ func ExtractIDCIdentifier(startURL string) string {
 
 // GenerateTokenFileName generates a unique filename for token storage.
 // Priority: email > startUrl identifier (for IDC) > authMethod only
-// Email is unique, so no sequence suffix needed. Sequence is only added
-// when email is unavailable to prevent filename collisions.
-// Format: kiro-{authMethod}-{identifier}[-{seq}].json
+// Email is unique, so no sequence suffix needed. StartURL identifier
+// is also used as-is since it uniquely identifies the IDC tenant.
+// Format: kiro-{authMethod}-{identifier}.json
 func GenerateTokenFileName(tokenData *KiroTokenData) string {
 	authMethod := tokenData.AuthMethod
 	if authMethod == "" {
@@ -509,19 +509,16 @@ func GenerateTokenFileName(tokenData *KiroTokenData) string {
 		return fmt.Sprintf("kiro-%s-%s.json", authMethod, sanitizedEmail)
 	}
 
-	// Generate sequence only when email is unavailable
-	seq := time.Now().UnixNano() % 100000
-
-	// Priority 2: For IDC, use startUrl identifier with sequence
+	// Priority 2: For IDC, use startUrl identifier (unique per tenant)
 	if authMethod == "idc" && tokenData.StartURL != "" {
 		identifier := ExtractIDCIdentifier(tokenData.StartURL)
 		if identifier != "" {
-			return fmt.Sprintf("kiro-%s-%s-%05d.json", authMethod, identifier, seq)
+			return fmt.Sprintf("kiro-%s-%s.json", authMethod, identifier)
 		}
 	}
 
-	// Priority 3: Fallback to authMethod only with sequence
-	return fmt.Sprintf("kiro-%s-%05d.json", authMethod, seq)
+	// Priority 3: Fallback to authMethod only
+	return fmt.Sprintf("kiro-%s.json", authMethod)
 }
 
 // DefaultKiroRegion is the fallback region when none is specified.

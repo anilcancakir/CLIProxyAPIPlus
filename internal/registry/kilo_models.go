@@ -1,7 +1,8 @@
 // Package registry provides model definitions for various AI service providers.
 package registry
 
-// GetKiloModels returns the Kilo model definitions
+// GetKiloModels returns the static Kilo model definitions.
+// The first entry (kilo/auto) is always prepended to any dynamically fetched models.
 func GetKiloModels() []*ModelInfo {
 	return []*ModelInfo{
 		// --- Base Models ---

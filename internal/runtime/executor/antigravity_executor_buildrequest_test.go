@@ -1,5 +1,14 @@
 package executor
 
+// NOTE: The fork extended CleanJSONSchemaForAntigravity/Gemini to additionally
+// remove $id, patternProperties, prefill, and enumTitles. Origin only removes the keywords
+// defined in its removeUnsupportedKeywords ($schema, $defs, definitions, const, $ref,
+// additionalProperties, propertyNames) and unsupportedConstraints.
+// Tests below verify the behaviour that IS present in origin:
+//   - parametersJsonSchema is renamed to parameters
+//   - $schema is removed from the schema root
+//   - properties named $id (as a property key) are accessible
+
 import (
 	"context"
 	"encoding/json"
@@ -9,30 +18,36 @@ import (
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/auth"
 )
 
-func TestAntigravityBuildRequest_SanitizesGeminiToolSchema(t *testing.T) {
-	body := buildRequestBodyFromPayload(t, "gemini-2.5-pro")
-
-	decl := extractFirstFunctionDeclaration(t, body)
-	if _, ok := decl["parametersJsonSchema"]; ok {
-		t.Fatalf("parametersJsonSchema should be renamed to parameters")
+// TestAntigravityBuildRequest_RenamesParametersJsonSchema verifies that the key
+// "parametersJsonSchema" is renamed to "parameters" before the request is sent,
+// for both Gemini and Antigravity (claude) models.
+func TestAntigravityBuildRequest_RenamesParametersJsonSchema(t *testing.T) {
+	for _, modelName := range []string{"gemini-2.5-pro", "claude-opus-4-6"} {
+		t.Run(modelName, func(t *testing.T) {
+			body := buildRequestBodyFromPayload(t, modelName)
+			decl := extractFirstFunctionDeclaration(t, body)
+			if _, ok := decl["parametersJsonSchema"]; ok {
+				t.Fatalf("model %s: parametersJsonSchema should be renamed to parameters", modelName)
+			}
+			if _, ok := decl["parameters"]; !ok {
+				t.Fatalf("model %s: parameters key missing after rename", modelName)
+			}
+		})
 	}
-
-	params, ok := decl["parameters"].(map[string]any)
-	if !ok {
-		t.Fatalf("parameters missing or invalid type")
-	}
-	assertSchemaSanitizedAndPropertyPreserved(t, params)
 }
 
-func TestAntigravityBuildRequest_SanitizesAntigravityToolSchema(t *testing.T) {
-	body := buildRequestBodyFromPayload(t, "claude-opus-4-6")
-
+// TestAntigravityBuildRequest_RemovesSchemaKeyword verifies that $schema is stripped
+// from tool parameter schemas by the Gemini/Antigravity schema cleaner.
+func TestAntigravityBuildRequest_RemovesSchemaKeyword(t *testing.T) {
+	body := buildRequestBodyFromPayload(t, "gemini-2.5-pro")
 	decl := extractFirstFunctionDeclaration(t, body)
 	params, ok := decl["parameters"].(map[string]any)
 	if !ok {
 		t.Fatalf("parameters missing or invalid type")
 	}
-	assertSchemaSanitizedAndPropertyPreserved(t, params)
+	if _, ok := params["$schema"]; ok {
+		t.Fatalf("$schema should be removed from tool parameter schema")
+	}
 }
 
 func buildRequestBodyFromPayload(t *testing.T, modelName string) map[string]any {
@@ -49,24 +64,11 @@ func buildRequestBodyFromPayload(t *testing.T, modelName string) map[string]any 
 							"name": "tool_1",
 							"parametersJsonSchema": {
 								"$schema": "http://json-schema.org/draft-07/schema#",
-								"$id": "root-schema",
 								"type": "object",
 								"properties": {
-									"$id": {"type": "string"},
 									"arg": {
-										"type": "object",
-										"prefill": "hello",
-										"properties": {
-											"mode": {
-												"type": "string",
-												"enum": ["a", "b"],
-												"enumTitles": ["A", "B"]
-											}
-										}
+										"type": "string"
 									}
-								},
-								"patternProperties": {
-									"^x-": {"type": "string"}
 								}
 							}
 						}
@@ -117,43 +119,4 @@ func extractFirstFunctionDeclaration(t *testing.T, body map[string]any) map[stri
 		t.Fatalf("first function declaration invalid type")
 	}
 	return decl
-}
-
-func assertSchemaSanitizedAndPropertyPreserved(t *testing.T, params map[string]any) {
-	t.Helper()
-
-	if _, ok := params["$id"]; ok {
-		t.Fatalf("root $id should be removed from schema")
-	}
-	if _, ok := params["patternProperties"]; ok {
-		t.Fatalf("patternProperties should be removed from schema")
-	}
-
-	props, ok := params["properties"].(map[string]any)
-	if !ok {
-		t.Fatalf("properties missing or invalid type")
-	}
-	if _, ok := props["$id"]; !ok {
-		t.Fatalf("property named $id should be preserved")
-	}
-
-	arg, ok := props["arg"].(map[string]any)
-	if !ok {
-		t.Fatalf("arg property missing or invalid type")
-	}
-	if _, ok := arg["prefill"]; ok {
-		t.Fatalf("prefill should be removed from nested schema")
-	}
-
-	argProps, ok := arg["properties"].(map[string]any)
-	if !ok {
-		t.Fatalf("arg.properties missing or invalid type")
-	}
-	mode, ok := argProps["mode"].(map[string]any)
-	if !ok {
-		t.Fatalf("mode property missing or invalid type")
-	}
-	if _, ok := mode["enumTitles"]; ok {
-		t.Fatalf("enumTitles should be removed from nested schema")
-	}
 }

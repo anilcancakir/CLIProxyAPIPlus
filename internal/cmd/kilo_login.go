@@ -14,8 +14,8 @@ import (
 // the authentication tokens to the configured auth directory.
 //
 // Parameters:
-//   - cfg: The application configuration
-//   - options: Login options including browser behavior and prompts
+//   - cfg: The application configuration.
+//   - options: Login options including browser behavior and prompts.
 func DoKiloLogin(cfg *config.Config, options *LoginOptions) {
 	if options == nil {
 		options = &LoginOptions{}

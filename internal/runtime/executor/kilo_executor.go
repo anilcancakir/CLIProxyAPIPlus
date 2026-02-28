@@ -35,7 +35,15 @@ func NewKiloExecutor(cfg *config.Config) *KiloExecutor {
 // Identifier returns the unique identifier for this executor.
 func (e *KiloExecutor) Identifier() string { return "kilo" }
 
-// PrepareRequest prepares the HTTP request before execution.
+// PrepareRequest prepares the HTTP request before execution by injecting the
+// Bearer token and any custom headers from the auth attributes.
+//
+// Parameters:
+//   - req: The HTTP request to prepare (may be nil for a no-op).
+//   - auth: The auth record containing the Kilo access token.
+//
+// Returns:
+//   - error: Non-nil if the access token is missing.
 func (e *KiloExecutor) PrepareRequest(req *http.Request, auth *cliproxyauth.Auth) error {
 	if req == nil {
 		return nil
@@ -54,7 +62,16 @@ func (e *KiloExecutor) PrepareRequest(req *http.Request, auth *cliproxyauth.Auth
 	return nil
 }
 
-// HttpRequest executes a raw HTTP request.
+// HttpRequest executes a raw HTTP request with Kilo authentication applied.
+//
+// Parameters:
+//   - ctx: The request context.
+//   - auth: The Kilo auth record.
+//   - req: The raw HTTP request to execute.
+//
+// Returns:
+//   - *http.Response: The HTTP response on success.
+//   - error: Non-nil if preparation or execution fails.
 func (e *KiloExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.Auth, req *http.Request) (*http.Response, error) {
 	if req == nil {
 		return nil, fmt.Errorf("kilo executor: request is nil")
@@ -70,8 +87,23 @@ func (e *KiloExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.Auth,
 	return httpClient.Do(httpReq)
 }
 
-// Execute performs a non-streaming request.
-func (e *KiloExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (resp cliproxyexecutor.Response, err error) {
+// Execute performs a non-streaming request to the Kilo API.
+//
+// Parameters:
+//   - ctx: The request context.
+//   - auth: The Kilo auth record.
+//   - req: The executor request payload.
+//   - opts: Execution options including source format and streaming flag.
+//
+// Returns:
+//   - cliproxyexecutor.Response: The translated response payload.
+//   - error: Non-nil if token is missing, the HTTP request fails, or translation errors.
+func (e *KiloExecutor) Execute(
+	ctx context.Context,
+	auth *cliproxyauth.Auth,
+	req cliproxyexecutor.Request,
+	opts cliproxyexecutor.Options,
+) (resp cliproxyexecutor.Response, err error) {
 	baseModel := thinking.ParseSuffix(req.Model).ModelName
 
 	reporter := newUsageReporter(ctx, e.Identifier(), baseModel, auth)
@@ -82,6 +114,7 @@ func (e *KiloExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
 		return resp, fmt.Errorf("kilo: missing access token")
 	}
 
+	// 1. Translate the request payload from source format to OpenAI wire format.
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("openai")
 	endpoint := "/api/openrouter/chat/completions"
@@ -96,11 +129,13 @@ func (e *KiloExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	translated = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", translated, originalTranslated, requestedModel)
 
+	// 2. Apply thinking mode transformations to the translated payload.
 	translated, err = thinking.ApplyThinking(translated, req.Model, from.String(), to.String(), e.Identifier())
 	if err != nil {
 		return resp, err
 	}
 
+	// 3. Build and send the HTTP request to Kilo AI.
 	url := "https://api.kilo.ai" + endpoint
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(translated))
 	if err != nil {
@@ -144,6 +179,7 @@ func (e *KiloExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
 	}
 	defer httpResp.Body.Close()
 
+	// 4. Read and translate the response body back to the caller's format.
 	recordAPIResponseMetadata(ctx, e.cfg, httpResp.StatusCode, httpResp.Header.Clone())
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
 		b, _ := io.ReadAll(httpResp.Body)
@@ -167,8 +203,23 @@ func (e *KiloExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
 	return resp, nil
 }
 
-// ExecuteStream performs a streaming request.
-func (e *KiloExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (_ *cliproxyexecutor.StreamResult, err error) {
+// ExecuteStream performs a streaming request to the Kilo API via server-sent events.
+//
+// Parameters:
+//   - ctx: The request context.
+//   - auth: The Kilo auth record.
+//   - req: The executor request payload.
+//   - opts: Execution options including source format.
+//
+// Returns:
+//   - <-chan cliproxyexecutor.StreamChunk: A channel delivering translated stream chunks.
+//   - error: Non-nil if token is missing or the HTTP request fails.
+func (e *KiloExecutor) ExecuteStream(
+	ctx context.Context,
+	auth *cliproxyauth.Auth,
+	req cliproxyexecutor.Request,
+	opts cliproxyexecutor.Options,
+) (stream <-chan cliproxyexecutor.StreamChunk, err error) {
 	baseModel := thinking.ParseSuffix(req.Model).ModelName
 
 	reporter := newUsageReporter(ctx, e.Identifier(), baseModel, auth)
@@ -179,6 +230,7 @@ func (e *KiloExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Aut
 		return nil, fmt.Errorf("kilo: missing access token")
 	}
 
+	// 1. Translate the request payload to OpenAI streaming format.
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("openai")
 	endpoint := "/api/openrouter/chat/completions"
@@ -193,11 +245,13 @@ func (e *KiloExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Aut
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	translated = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", translated, originalTranslated, requestedModel)
 
+	// 2. Apply thinking mode transformations.
 	translated, err = thinking.ApplyThinking(translated, req.Model, from.String(), to.String(), e.Identifier())
 	if err != nil {
 		return nil, err
 	}
 
+	// 3. Build and send the streaming HTTP request to Kilo AI.
 	url := "https://api.kilo.ai" + endpoint
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(translated))
 	if err != nil {
@@ -252,7 +306,10 @@ func (e *KiloExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Aut
 		return nil, err
 	}
 
+	// 4. Fan SSE lines out over a channel for callers to consume.
 	out := make(chan cliproxyexecutor.StreamChunk)
+	stream = out
+
 	go func() {
 		defer close(out)
 		defer httpResp.Body.Close()
@@ -285,13 +342,18 @@ func (e *KiloExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Aut
 		reporter.ensurePublished(ctx)
 	}()
 
-	return &cliproxyexecutor.StreamResult{
-		Headers: httpResp.Header.Clone(),
-		Chunks:  out,
-	}, nil
+	return stream, nil
 }
 
-// Refresh validates the Kilo token.
+// Refresh validates the Kilo token — currently a no-op pass-through.
+//
+// Parameters:
+//   - ctx: The request context.
+//   - auth: The Kilo auth record to validate.
+//
+// Returns:
+//   - *cliproxyauth.Auth: The unchanged auth record.
+//   - error: Non-nil if auth is nil.
 func (e *KiloExecutor) Refresh(ctx context.Context, auth *cliproxyauth.Auth) (*cliproxyauth.Auth, error) {
 	if auth == nil {
 		return nil, fmt.Errorf("missing auth")
@@ -299,18 +361,32 @@ func (e *KiloExecutor) Refresh(ctx context.Context, auth *cliproxyauth.Auth) (*c
 	return auth, nil
 }
 
-// CountTokens returns the token count for the given request.
-func (e *KiloExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
+// CountTokens is not supported by the Kilo executor.
+func (e *KiloExecutor) CountTokens(
+	ctx context.Context,
+	auth *cliproxyauth.Auth,
+	req cliproxyexecutor.Request,
+	opts cliproxyexecutor.Options,
+) (cliproxyexecutor.Response, error) {
 	return cliproxyexecutor.Response{}, fmt.Errorf("kilo: count tokens not supported")
 }
 
-// kiloCredentials extracts access token and other info from auth.
+// kiloCredentials extracts the access token and organization ID from the auth record.
+// It checks metadata first, then falls back to attributes, preferring Kilo-specific
+// keys over generic ones.
+//
+// Parameters:
+//   - auth: The auth record to extract credentials from.
+//
+// Returns:
+//   - accessToken: The Kilo API access token.
+//   - orgID: The Kilo organization ID (may be empty).
 func kiloCredentials(auth *cliproxyauth.Auth) (accessToken, orgID string) {
 	if auth == nil {
 		return "", ""
 	}
 
-	// Prefer kilocode specific keys, then fall back to generic keys.
+	// Prefer kilocode-specific keys, then fall back to generic keys.
 	// Check metadata first, then attributes.
 	if auth.Metadata != nil {
 		if token, ok := auth.Metadata["kilocodeToken"].(string); ok && token != "" {
@@ -345,7 +421,17 @@ func kiloCredentials(auth *cliproxyauth.Auth) (accessToken, orgID string) {
 	return accessToken, orgID
 }
 
-// FetchKiloModels fetches models from Kilo API.
+// FetchKiloModels fetches the list of available Kilo models from the API.
+// It returns dynamic models filtered to curated free ones (preferredIndex > 0),
+// always prepending the static kilo/auto model. Falls back to static models on any error.
+//
+// Parameters:
+//   - ctx: The request context.
+//   - auth: The Kilo auth record (used to extract credentials).
+//   - cfg: The application configuration.
+//
+// Returns:
+//   - []*registry.ModelInfo: The combined list of available Kilo models.
 func FetchKiloModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *config.Config) []*registry.ModelInfo {
 	accessToken, orgID := kiloCredentials(auth)
 	if accessToken == "" {
@@ -392,7 +478,7 @@ func FetchKiloModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *config.C
 
 	result := gjson.GetBytes(body, "data")
 	if !result.Exists() {
-		// Try root if data field is missing
+		// Try root if data field is missing.
 		result = gjson.ParseBytes(body)
 		if !result.IsArray() {
 			log.Debugf("kilo: response body: %s", string(body))
@@ -412,15 +498,14 @@ func FetchKiloModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *config.C
 		pIdxResult := value.Get("preferredIndex")
 		preferredIndex := pIdxResult.Int()
 
-		// Filter models where preferredIndex > 0 (Kilo-curated models)
+		// Filter models where preferredIndex > 0 (Kilo-curated models).
 		if preferredIndex <= 0 {
 			return true
 		}
 
-		// Check if it's free. We look for :free suffix, is_free flag, or zero pricing.
+		// Check if it's free — look for :free suffix, is_free flag, or zero pricing.
 		isFree := strings.HasSuffix(id, ":free") || id == "giga-potato" || value.Get("is_free").Bool()
 		if !isFree {
-			// Check pricing as fallback
 			promptPricing := value.Get("pricing.prompt").String()
 			if promptPricing == "0" || promptPricing == "0.0" {
 				isFree = true
@@ -453,7 +538,7 @@ func FetchKiloModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *config.C
 	}
 
 	staticModels := registry.GetKiloModels()
-	// Always include kilo/auto (first static model)
+	// Always include kilo/auto (first static model).
 	allModels := append(staticModels[:1], dynamicModels...)
 
 	return allModels
