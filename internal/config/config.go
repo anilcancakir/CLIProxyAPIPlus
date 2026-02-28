@@ -115,9 +115,13 @@ type Config struct {
 	// AmpCode contains Amp CLI upstream configuration, management restrictions, and model mappings.
 	AmpCode AmpCode `yaml:"ampcode" json:"ampcode"`
 
-	// OAuthExcludedModels defines per-provider global model exclusions applied to OAuth/file-backed auth entries.
-	// Supported channels: gemini-cli, vertex, aistudio, antigravity, claude, codex, qwen, iflow, kiro, github-copilot.
 	OAuthExcludedModels map[string][]string `yaml:"oauth-excluded-models,omitempty" json:"oauth-excluded-models,omitempty"`
+
+	// OAuthProviderPriority sets a default priority for all OAuth/file-backed auth entries
+	// belonging to a specific provider. Higher values are preferred; defaults to 0.
+	// Account-level priority in the JSON auth file overrides this value.
+	// Supported channels: gemini-cli, vertex, aistudio, antigravity, claude, codex, qwen, iflow, kiro, github-copilot.
+	OAuthProviderPriority map[string]int `yaml:"oauth-provider-priority,omitempty" json:"oauth-provider-priority,omitempty"`
 
 	// OAuthModelAlias defines global model name aliases for OAuth/file-backed auth channels.
 	// These aliases affect both model listing and model routing for supported channels:
