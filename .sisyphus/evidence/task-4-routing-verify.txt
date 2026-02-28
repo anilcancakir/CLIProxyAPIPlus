@@ -1,0 +1,202 @@
+=== RUN   TestLookupAPIKeyUpstreamModel
+=== RUN   TestLookupAPIKeyUpstreamModel/alias_with_suffix
+=== RUN   TestLookupAPIKeyUpstreamModel/alias_without_suffix
+=== RUN   TestLookupAPIKeyUpstreamModel/config_suffix_priority
+=== RUN   TestLookupAPIKeyUpstreamModel/config_suffix_no_user_suffix
+=== RUN   TestLookupAPIKeyUpstreamModel/uppercase_alias
+=== RUN   TestLookupAPIKeyUpstreamModel/mixed_case_with_suffix
+=== RUN   TestLookupAPIKeyUpstreamModel/upstream_name_direct
+=== RUN   TestLookupAPIKeyUpstreamModel/upstream_name_with_suffix
+=== RUN   TestLookupAPIKeyUpstreamModel/non-existent_auth
+=== RUN   TestLookupAPIKeyUpstreamModel/unknown_alias
+=== RUN   TestLookupAPIKeyUpstreamModel/empty_auth_ID
+=== RUN   TestLookupAPIKeyUpstreamModel/empty_model
+--- PASS: TestLookupAPIKeyUpstreamModel (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/alias_with_suffix (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/alias_without_suffix (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/config_suffix_priority (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/config_suffix_no_user_suffix (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/uppercase_alias (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/mixed_case_with_suffix (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/upstream_name_direct (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/upstream_name_with_suffix (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/non-existent_auth (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/unknown_alias (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/empty_auth_ID (0.00s)
+    --- PASS: TestLookupAPIKeyUpstreamModel/empty_model (0.00s)
+=== RUN   TestAPIKeyModelAlias_ConfigHotReload
+--- PASS: TestAPIKeyModelAlias_ConfigHotReload (0.00s)
+=== RUN   TestAPIKeyModelAlias_MultipleProviders
+--- PASS: TestAPIKeyModelAlias_MultipleProviders (0.00s)
+=== RUN   TestApplyAPIKeyModelAlias
+=== RUN   TestApplyAPIKeyModelAlias/api_key_auth_with_alias
+=== RUN   TestApplyAPIKeyModelAlias/oauth_auth_passthrough
+--- PASS: TestApplyAPIKeyModelAlias (0.00s)
+    --- PASS: TestApplyAPIKeyModelAlias/api_key_auth_with_alias (0.00s)
+    --- PASS: TestApplyAPIKeyModelAlias/oauth_auth_passthrough (0.00s)
+=== RUN   TestUpdateAggregatedAvailability_UnavailableWithoutNextRetryDoesNotBlockAuth
+=== PAUSE TestUpdateAggregatedAvailability_UnavailableWithoutNextRetryDoesNotBlockAuth
+=== RUN   TestUpdateAggregatedAvailability_FutureNextRetryBlocksAuth
+=== PAUSE TestUpdateAggregatedAvailability_FutureNextRetryBlocksAuth
+=== RUN   TestManagerRegisterExecutorClosesReplacedExecutionSessions
+=== PAUSE TestManagerRegisterExecutorClosesReplacedExecutionSessions
+=== RUN   TestManagerExecutorReturnsRegisteredExecutor
+=== PAUSE TestManagerExecutorReturnsRegisteredExecutor
+=== RUN   TestManager_ShouldRetryAfterError_RespectsAuthRequestRetryOverride
+--- PASS: TestManager_ShouldRetryAfterError_RespectsAuthRequestRetryOverride (0.00s)
+=== RUN   TestManager_MarkResult_RespectsAuthDisableCoolingOverride
+--- PASS: TestManager_MarkResult_RespectsAuthDisableCoolingOverride (0.00s)
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation
+=== RUN   TestOAuthModelAliasChannel_Kimi
+=== PAUSE TestOAuthModelAliasChannel_Kimi
+=== RUN   TestOAuthModelAliasChannel_GitHubCopilot
+=== PAUSE TestOAuthModelAliasChannel_GitHubCopilot
+=== RUN   TestOAuthModelAliasChannel_Kiro
+=== PAUSE TestOAuthModelAliasChannel_Kiro
+=== RUN   TestApplyOAuthModelAlias_SuffixPreservation
+=== PAUSE TestApplyOAuthModelAlias_SuffixPreservation
+=== RUN   TestWithSkipPersist_DisablesUpdatePersistence
+--- PASS: TestWithSkipPersist_DisablesUpdatePersistence (0.00s)
+=== RUN   TestWithSkipPersist_DisablesRegisterPersistence
+--- PASS: TestWithSkipPersist_DisablesRegisterPersistence (0.00s)
+=== RUN   TestFillFirstSelectorPick_Deterministic
+=== PAUSE TestFillFirstSelectorPick_Deterministic
+=== RUN   TestRoundRobinSelectorPick_CyclesDeterministic
+=== PAUSE TestRoundRobinSelectorPick_CyclesDeterministic
+=== RUN   TestRoundRobinSelectorPick_PriorityBuckets
+=== PAUSE TestRoundRobinSelectorPick_PriorityBuckets
+=== RUN   TestFillFirstSelectorPick_PriorityFallbackCooldown
+=== PAUSE TestFillFirstSelectorPick_PriorityFallbackCooldown
+=== RUN   TestRoundRobinSelectorPick_Concurrent
+--- PASS: TestRoundRobinSelectorPick_Concurrent (0.00s)
+=== RUN   TestSelectorPick_AllCooldownReturnsModelCooldownError
+=== PAUSE TestSelectorPick_AllCooldownReturnsModelCooldownError
+=== RUN   TestIsAuthBlockedForModel_UnavailableWithoutNextRetryIsNotBlocked
+=== PAUSE TestIsAuthBlockedForModel_UnavailableWithoutNextRetryIsNotBlocked
+=== RUN   TestFillFirstSelectorPick_ThinkingSuffixFallsBackToBaseModelState
+=== PAUSE TestFillFirstSelectorPick_ThinkingSuffixFallsBackToBaseModelState
+=== RUN   TestRoundRobinSelectorPick_ThinkingSuffixSharesCursor
+=== PAUSE TestRoundRobinSelectorPick_ThinkingSuffixSharesCursor
+=== RUN   TestRoundRobinSelectorPick_CursorKeyCap
+=== PAUSE TestRoundRobinSelectorPick_CursorKeyCap
+=== RUN   TestRoundRobinSelectorPick_GeminiCLICredentialGrouping
+=== PAUSE TestRoundRobinSelectorPick_GeminiCLICredentialGrouping
+=== RUN   TestRoundRobinSelectorPick_SingleParentFallsBackToFlat
+=== PAUSE TestRoundRobinSelectorPick_SingleParentFallsBackToFlat
+=== RUN   TestRoundRobinSelectorPick_MixedVirtualAndNonVirtualFallsBackToFlat
+=== PAUSE TestRoundRobinSelectorPick_MixedVirtualAndNonVirtualFallsBackToFlat
+=== RUN   TestToolPrefixDisabled
+--- PASS: TestToolPrefixDisabled (0.00s)
+=== CONT  TestUpdateAggregatedAvailability_UnavailableWithoutNextRetryDoesNotBlockAuth
+--- PASS: TestUpdateAggregatedAvailability_UnavailableWithoutNextRetryDoesNotBlockAuth (0.00s)
+=== CONT  TestRoundRobinSelectorPick_CyclesDeterministic
+=== CONT  TestRoundRobinSelectorPick_PriorityBuckets
+--- PASS: TestRoundRobinSelectorPick_CyclesDeterministic (0.00s)
+=== CONT  TestFillFirstSelectorPick_Deterministic
+--- PASS: TestFillFirstSelectorPick_Deterministic (0.00s)
+=== CONT  TestApplyOAuthModelAlias_SuffixPreservation
+--- PASS: TestRoundRobinSelectorPick_PriorityBuckets (0.00s)
+=== CONT  TestRoundRobinSelectorPick_MixedVirtualAndNonVirtualFallsBackToFlat
+--- PASS: TestRoundRobinSelectorPick_MixedVirtualAndNonVirtualFallsBackToFlat (0.00s)
+=== CONT  TestRoundRobinSelectorPick_SingleParentFallsBackToFlat
+=== CONT  TestOAuthModelAliasChannel_Kiro
+=== CONT  TestOAuthModelAliasChannel_GitHubCopilot
+=== CONT  TestOAuthModelAliasChannel_Kimi
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation
+=== CONT  TestRoundRobinSelectorPick_GeminiCLICredentialGrouping
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/numeric_suffix_preserved
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/numeric_suffix_preserved
+=== CONT  TestRoundRobinSelectorPick_CursorKeyCap
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/level_suffix_preserved
+=== CONT  TestRoundRobinSelectorPick_ThinkingSuffixSharesCursor
+=== CONT  TestManagerExecutorReturnsRegisteredExecutor
+=== CONT  TestManagerRegisterExecutorClosesReplacedExecutionSessions
+=== CONT  TestFillFirstSelectorPick_ThinkingSuffixFallsBackToBaseModelState
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/level_suffix_preserved
+=== CONT  TestIsAuthBlockedForModel_UnavailableWithoutNextRetryIsNotBlocked
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/no_suffix_unchanged
+=== CONT  TestSelectorPick_AllCooldownReturnsModelCooldownError
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/no_suffix_unchanged
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/kiro_alias_resolves
+=== RUN   TestSelectorPick_AllCooldownReturnsModelCooldownError/mixed_provider_redacts_provider_field
+=== CONT  TestFillFirstSelectorPick_PriorityFallbackCooldown
+--- PASS: TestApplyOAuthModelAlias_SuffixPreservation (0.00s)
+--- PASS: TestOAuthModelAliasChannel_Kiro (0.00s)
+=== PAUSE TestSelectorPick_AllCooldownReturnsModelCooldownError/mixed_provider_redacts_provider_field
+=== RUN   TestSelectorPick_AllCooldownReturnsModelCooldownError/non-mixed_provider_includes_provider_field
+=== PAUSE TestSelectorPick_AllCooldownReturnsModelCooldownError/non-mixed_provider_includes_provider_field
+=== CONT  TestSelectorPick_AllCooldownReturnsModelCooldownError/mixed_provider_redacts_provider_field
+--- PASS: TestOAuthModelAliasChannel_GitHubCopilot (0.00s)
+--- PASS: TestOAuthModelAliasChannel_Kimi (0.00s)
+--- PASS: TestRoundRobinSelectorPick_SingleParentFallsBackToFlat (0.00s)
+--- PASS: TestRoundRobinSelectorPick_GeminiCLICredentialGrouping (0.00s)
+--- PASS: TestRoundRobinSelectorPick_CursorKeyCap (0.00s)
+--- PASS: TestManagerExecutorReturnsRegisteredExecutor (0.00s)
+--- PASS: TestRoundRobinSelectorPick_ThinkingSuffixSharesCursor (0.00s)
+--- PASS: TestManagerRegisterExecutorClosesReplacedExecutionSessions (0.00s)
+--- PASS: TestFillFirstSelectorPick_ThinkingSuffixFallsBackToBaseModelState (0.00s)
+--- PASS: TestIsAuthBlockedForModel_UnavailableWithoutNextRetryIsNotBlocked (0.00s)
+--- PASS: TestFillFirstSelectorPick_PriorityFallbackCooldown (0.00s)
+=== CONT  TestUpdateAggregatedAvailability_FutureNextRetryBlocksAuth
+--- PASS: TestUpdateAggregatedAvailability_FutureNextRetryBlocksAuth (0.00s)
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/kiro_alias_resolves
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/config_suffix_takes_priority
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/config_suffix_takes_priority
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/auto_suffix_preserved
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/auto_suffix_preserved
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/none_suffix_preserved
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/none_suffix_preserved
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/github-copilot_suffix_preserved
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/github-copilot_suffix_preserved
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/github-copilot_no_suffix
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/github-copilot_no_suffix
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/kimi_suffix_preserved
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/kimi_suffix_preserved
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/case_insensitive_alias_lookup_with_suffix
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/case_insensitive_alias_lookup_with_suffix
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/no_alias_returns_empty
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/no_alias_returns_empty
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/wrong_channel_returns_empty
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/wrong_channel_returns_empty
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/empty_suffix_filtered_out
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/empty_suffix_filtered_out
+=== RUN   TestResolveOAuthUpstreamModel_SuffixPreservation/incomplete_suffix_treated_as_no_suffix
+=== PAUSE TestResolveOAuthUpstreamModel_SuffixPreservation/incomplete_suffix_treated_as_no_suffix
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/numeric_suffix_preserved
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/incomplete_suffix_treated_as_no_suffix
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/empty_suffix_filtered_out
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/wrong_channel_returns_empty
+=== CONT  TestSelectorPick_AllCooldownReturnsModelCooldownError/non-mixed_provider_includes_provider_field
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/no_alias_returns_empty
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/case_insensitive_alias_lookup_with_suffix
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/kimi_suffix_preserved
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/github-copilot_no_suffix
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/github-copilot_suffix_preserved
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/none_suffix_preserved
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/no_suffix_unchanged
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/kiro_alias_resolves
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/level_suffix_preserved
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/auto_suffix_preserved
+=== CONT  TestResolveOAuthUpstreamModel_SuffixPreservation/config_suffix_takes_priority
+--- PASS: TestSelectorPick_AllCooldownReturnsModelCooldownError (0.00s)
+    --- PASS: TestSelectorPick_AllCooldownReturnsModelCooldownError/mixed_provider_redacts_provider_field (0.00s)
+    --- PASS: TestSelectorPick_AllCooldownReturnsModelCooldownError/non-mixed_provider_includes_provider_field (0.00s)
+--- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/numeric_suffix_preserved (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/incomplete_suffix_treated_as_no_suffix (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/empty_suffix_filtered_out (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/wrong_channel_returns_empty (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/no_alias_returns_empty (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/case_insensitive_alias_lookup_with_suffix (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/kimi_suffix_preserved (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/github-copilot_no_suffix (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/github-copilot_suffix_preserved (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/none_suffix_preserved (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/no_suffix_unchanged (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/kiro_alias_resolves (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/level_suffix_preserved (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/auto_suffix_preserved (0.00s)
+    --- PASS: TestResolveOAuthUpstreamModel_SuffixPreservation/config_suffix_takes_priority (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/auth	(cached)

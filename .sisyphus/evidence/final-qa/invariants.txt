@@ -1,0 +1,42 @@
+=== INVARIANT CHECKS ===
+Date: 2026-02-28
+
+[1] Cancel context.CancelFunc in sdk/cliproxy/executor/types.go
+    sdk/cliproxy/executor/types.go:86:	Cancel  context.CancelFunc
+    STATUS: PRESENT ✓
+
+[2] Forbidden codegen types NOT in sdk/config/config.go
+    Checked: ProviderSpec, CursorKey, MiniMaxKey, GeneratedConfig, DeepSeekKey, GroqKey, OAICompatProviderConfig
+    grep result: EXIT 1 (not found) ✓
+    Note: 'ensureCursorKey' in sdk/cliproxy/auth/selector.go is a local method name, NOT the codegen struct field.
+
+[3] Module path in go.mod
+    go.mod:1: module github.com/router-for-me/CLIProxyAPI/v6
+    STATUS: UNCHANGED ✓
+
+[4] internal/ directory modifications
+    git diff HEAD~1 HEAD -- internal/: empty (no changes)
+    git status --short internal/: empty (no changes)
+    STATUS: ZERO MODIFICATIONS ✓
+
+=== PACKAGE BUILDS (independent) ===
+go build ./sdk/api/handlers/claude/...       EXIT:0 ✓
+go build ./sdk/cliproxy/auth/...             EXIT:0 ✓
+go build ./sdk/cliproxy/...                  EXIT:0 ✓
+go build ./sdk/config/...                    EXIT:0 ✓
+go build ./sdk/api/handlers/openai/...       EXIT:0 ✓
+Total: 5/5 packages build clean
+
+=== RACE DETECTOR TESTS ===
+sdk/access          ok (race)  ✓
+sdk/api/handlers    ok (race)  ✓
+sdk/api/handlers/claude  ok (race)  ✓
+sdk/api/handlers/openai  ok (race)  ✓
+sdk/auth            ok (race)  ✓
+sdk/cliproxy        ok (race)  ✓
+sdk/cliproxy/auth   ok (race)  ✓
+sdk/config          ok (race)  ✓
+test/               ok (race)  ✓
+Total sdk/...: 8/8 packages with tests pass (race)
+Total test/...: 1/1 pass (race)
+No data races detected.

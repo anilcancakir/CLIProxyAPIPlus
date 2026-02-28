@@ -1,0 +1,112 @@
+=== RUN   TestManager_Authenticate
+--- PASS: TestManager_Authenticate (0.00s)
+=== RUN   TestManager_Providers
+--- PASS: TestManager_Providers (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v6/sdk/access	0.528s
+=== RUN   TestAppendAPIResponse_AppendsWithNewline
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+--- PASS: TestAppendAPIResponse_AppendsWithNewline (0.00s)
+=== RUN   TestBuildErrorResponseBody_PreservesOpenAIEnvelopeJSON
+--- PASS: TestBuildErrorResponseBody_PreservesOpenAIEnvelopeJSON (0.00s)
+=== RUN   TestBuildErrorResponseBody_RewrapsJSONWithoutErrorField
+--- PASS: TestBuildErrorResponseBody_RewrapsJSONWithoutErrorField (0.00s)
+=== RUN   TestBuildErrorResponseBody_NotFoundAddsModelHint
+--- PASS: TestBuildErrorResponseBody_NotFoundAddsModelHint (0.00s)
+=== RUN   TestWriteErrorResponse_AddonHeadersDisabledByDefault
+--- PASS: TestWriteErrorResponse_AddonHeadersDisabledByDefault (0.00s)
+=== RUN   TestWriteErrorResponse_AddonHeadersEnabled
+--- PASS: TestWriteErrorResponse_AddonHeadersEnabled (0.00s)
+=== RUN   TestRequestExecutionMetadata_GeneratesIdempotencyKey
+--- PASS: TestRequestExecutionMetadata_GeneratesIdempotencyKey (0.00s)
+=== RUN   TestRequestExecutionMetadata_PreservesHeaderAndContextMetadata
+--- PASS: TestRequestExecutionMetadata_PreservesHeaderAndContextMetadata (0.00s)
+=== RUN   TestRequestExecutionMetadata_UsesProvidedIdempotencyKeyForRetries
+--- PASS: TestRequestExecutionMetadata_UsesProvidedIdempotencyKeyForRetries (0.00s)
+=== RUN   TestGetRequestDetails_PreservesSuffix
+=== RUN   TestGetRequestDetails_PreservesSuffix/numeric_suffix_preserved
+=== RUN   TestGetRequestDetails_PreservesSuffix/level_suffix_preserved
+=== RUN   TestGetRequestDetails_PreservesSuffix/no_suffix_unchanged
+=== RUN   TestGetRequestDetails_PreservesSuffix/unknown_model_with_suffix
+=== RUN   TestGetRequestDetails_PreservesSuffix/auto_suffix_resolved
+time="2026-02-28T16:02:31+03:00" level=info msg="Resolved 'auto' model to: gemini-2.5-pro"
+=== RUN   TestGetRequestDetails_PreservesSuffix/special_suffix_none_preserved
+=== RUN   TestGetRequestDetails_PreservesSuffix/special_suffix_auto_preserved
+--- PASS: TestGetRequestDetails_PreservesSuffix (0.00s)
+    --- PASS: TestGetRequestDetails_PreservesSuffix/numeric_suffix_preserved (0.00s)
+    --- PASS: TestGetRequestDetails_PreservesSuffix/level_suffix_preserved (0.00s)
+    --- PASS: TestGetRequestDetails_PreservesSuffix/no_suffix_unchanged (0.00s)
+    --- PASS: TestGetRequestDetails_PreservesSuffix/unknown_model_with_suffix (0.00s)
+    --- PASS: TestGetRequestDetails_PreservesSuffix/auto_suffix_resolved (0.00s)
+    --- PASS: TestGetRequestDetails_PreservesSuffix/special_suffix_none_preserved (0.00s)
+    --- PASS: TestGetRequestDetails_PreservesSuffix/special_suffix_auto_preserved (0.00s)
+=== RUN   TestExecuteStreamWithAuthManager_RetriesBeforeFirstByte
+--- PASS: TestExecuteStreamWithAuthManager_RetriesBeforeFirstByte (0.00s)
+=== RUN   TestExecuteStreamWithAuthManager_HeaderPassthroughDisabledByDefault
+--- PASS: TestExecuteStreamWithAuthManager_HeaderPassthroughDisabledByDefault (0.00s)
+=== RUN   TestExecuteStreamWithAuthManager_DoesNotRetryAfterFirstByte
+--- PASS: TestExecuteStreamWithAuthManager_DoesNotRetryAfterFirstByte (0.00s)
+=== RUN   TestExecuteStreamWithAuthManager_PinnedAuthKeepsSameUpstream
+--- PASS: TestExecuteStreamWithAuthManager_PinnedAuthKeepsSameUpstream (0.00s)
+=== RUN   TestExecuteStreamWithAuthManager_SelectedAuthCallbackReceivesAuthID
+--- PASS: TestExecuteStreamWithAuthManager_SelectedAuthCallbackReceivesAuthID (0.00s)
+=== RUN   TestExecuteStreamWithAuthManager_ValidatesOpenAIResponsesStreamDataJSON
+--- PASS: TestExecuteStreamWithAuthManager_ValidatesOpenAIResponsesStreamDataJSON (0.00s)
+=== RUN   TestFilterUpstreamHeaders_RemovesConnectionScopedHeaders
+--- PASS: TestFilterUpstreamHeaders_RemovesConnectionScopedHeaders (0.00s)
+=== RUN   TestFilterUpstreamHeaders_ReturnsNilWhenAllHeadersBlocked
+--- PASS: TestFilterUpstreamHeaders_ReturnsNilWhenAllHeadersBlocked (0.00s)
+=== RUN   TestBuildOpenAIResponsesStreamErrorChunk
+--- PASS: TestBuildOpenAIResponsesStreamErrorChunk (0.00s)
+=== RUN   TestBuildOpenAIResponsesStreamErrorChunkExtractsHTTPErrorBody
+--- PASS: TestBuildOpenAIResponsesStreamErrorChunkExtractsHTTPErrorBody (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v6/sdk/api/handlers	0.769s
+=== RUN   TestSanitizeClaudeRequest_RemovesPlaceholderReasonOnlySchema
+--- PASS: TestSanitizeClaudeRequest_RemovesPlaceholderReasonOnlySchema (0.00s)
+=== RUN   TestSanitizeClaudeRequest_PreservesNonPlaceholderReasonSchema
+--- PASS: TestSanitizeClaudeRequest_PreservesNonPlaceholderReasonSchema (0.00s)
+=== RUN   TestSanitizeClaudeRequest_RemovesPlaceholderReasonWithOtherProperties
+--- PASS: TestSanitizeClaudeRequest_RemovesPlaceholderReasonWithOtherProperties (0.00s)
+=== RUN   TestSanitizeClaudeRequest_RemovesPlaceholderReasonFromCustomInputSchema
+--- PASS: TestSanitizeClaudeRequest_RemovesPlaceholderReasonFromCustomInputSchema (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v6/sdk/api/handlers/claude	(cached)
+?   	github.com/router-for-me/CLIProxyAPI/v6/sdk/api/handlers/gemini	[no test files]
+=== RUN   TestOpenAIResponsesCompactRejectsStream
+--- PASS: TestOpenAIResponsesCompactRejectsStream (0.00s)
+=== RUN   TestOpenAIResponsesCompactExecute
+--- PASS: TestOpenAIResponsesCompactExecute (0.00s)
+=== RUN   TestForwardResponsesStreamTerminalErrorUsesResponsesErrorChunk
+--- PASS: TestForwardResponsesStreamTerminalErrorUsesResponsesErrorChunk (0.00s)
+=== RUN   TestNormalizeResponsesWebsocketRequestCreate
+--- PASS: TestNormalizeResponsesWebsocketRequestCreate (0.00s)
+=== RUN   TestNormalizeResponsesWebsocketRequestCreateWithHistory
+--- PASS: TestNormalizeResponsesWebsocketRequestCreateWithHistory (0.00s)
+=== RUN   TestNormalizeResponsesWebsocketRequestWithPreviousResponseIDIncremental
+--- PASS: TestNormalizeResponsesWebsocketRequestWithPreviousResponseIDIncremental (0.00s)
+=== RUN   TestNormalizeResponsesWebsocketRequestWithPreviousResponseIDMergedWhenIncrementalDisabled
+--- PASS: TestNormalizeResponsesWebsocketRequestWithPreviousResponseIDMergedWhenIncrementalDisabled (0.00s)
+=== RUN   TestNormalizeResponsesWebsocketRequestAppend
+--- PASS: TestNormalizeResponsesWebsocketRequestAppend (0.00s)
+=== RUN   TestNormalizeResponsesWebsocketRequestAppendWithoutCreate
+--- PASS: TestNormalizeResponsesWebsocketRequestAppendWithoutCreate (0.00s)
+=== RUN   TestWebsocketJSONPayloadsFromChunk
+--- PASS: TestWebsocketJSONPayloadsFromChunk (0.00s)
+=== RUN   TestWebsocketJSONPayloadsFromPlainJSONChunk
+--- PASS: TestWebsocketJSONPayloadsFromPlainJSONChunk (0.00s)
+=== RUN   TestResponseCompletedOutputFromPayload
+--- PASS: TestResponseCompletedOutputFromPayload (0.00s)
+=== RUN   TestAppendWebsocketEvent
+--- PASS: TestAppendWebsocketEvent (0.00s)
+=== RUN   TestSetWebsocketRequestBody
+--- PASS: TestSetWebsocketRequestBody (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v6/sdk/api/handlers/openai	0.421s
+=== RUN   TestConfigWrappers
+--- PASS: TestConfigWrappers (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v6/sdk/config	0.406s
