@@ -1,0 +1,18 @@
+=== RUN   TestClaudeQuotaCheckerFetchQuota
+=== RUN   TestClaudeQuotaCheckerFetchQuota/Fresh_fetch
+=== RUN   TestClaudeQuotaCheckerFetchQuota/Cache_hit
+=== RUN   TestClaudeQuotaCheckerFetchQuota/HTTP_429
+=== RUN   TestClaudeQuotaCheckerFetchQuota/HTTP_500
+=== RUN   TestClaudeQuotaCheckerFetchQuota/Empty_response_fields
+--- PASS: TestClaudeQuotaCheckerFetchQuota (0.00s)
+    --- PASS: TestClaudeQuotaCheckerFetchQuota/Fresh_fetch (0.00s)
+    --- PASS: TestClaudeQuotaCheckerFetchQuota/Cache_hit (0.00s)
+    --- PASS: TestClaudeQuotaCheckerFetchQuota/HTTP_429 (0.00s)
+    --- PASS: TestClaudeQuotaCheckerFetchQuota/HTTP_500 (0.00s)
+    --- PASS: TestClaudeQuotaCheckerFetchQuota/Empty_response_fields (0.00s)
+=== RUN   TestClaudeQuotaCheckerGetCachedQuota
+=== RUN   TestClaudeQuotaCheckerGetCachedQuota/GetCachedQuota_nil
+--- PASS: TestClaudeQuotaCheckerGetCachedQuota (0.00s)
+    --- PASS: TestClaudeQuotaCheckerGetCachedQuota/GetCachedQuota_nil (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v6/internal/auth/claude	0.278s
