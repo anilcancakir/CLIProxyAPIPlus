@@ -22,6 +22,14 @@ max-retry-interval: 30
 quota-exceeded:
     switch-project: true
     switch-preview-model: true
+    # claude-quota-threshold: Per-model 5-hour quota utilization thresholds (0-100).
+    # When a model's utilization exceeds the threshold, Claude Code stops serving it
+    # and the alias falls back to alternative providers (Antigravity, Copilot) via
+    # existing priority routing. Quota auto-recovers when the 5-hour window resets.
+    # Supports wildcard patterns (e.g., "claude-opus-*: 80").
+    claude-quota-threshold:
+        claude-opus-4-5-20251101: 80      # Fail over Opus at 80% utilization
+        claude-sonnet-4-5-20250929: 95    # Fail over Sonnet at 95% utilization
 routing:
     strategy: round-robin
 ws-auth: false
