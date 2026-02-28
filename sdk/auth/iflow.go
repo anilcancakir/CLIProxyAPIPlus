@@ -26,7 +26,9 @@ func (a *IFlowAuthenticator) Provider() string { return "iflow" }
 
 // RefreshLead indicates how soon before expiry a refresh should be attempted.
 func (a *IFlowAuthenticator) RefreshLead() *time.Duration {
-	return new(24 * time.Hour)
+	val := 24 * time.Hour
+	return &val
+
 }
 
 // Login performs the OAuth code flow using a local callback server.

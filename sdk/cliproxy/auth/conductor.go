@@ -33,6 +33,7 @@ type ProviderExecutor interface {
 	// ExecuteStream handles streaming execution and returns a StreamResult containing
 	// upstream headers and a channel of provider chunks.
 	ExecuteStream(ctx context.Context, auth *Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (*cliproxyexecutor.StreamResult, error)
+
 	// Refresh attempts to refresh provider credentials and returns the updated auth state.
 	Refresh(ctx context.Context, auth *Auth) (*Auth, error)
 	// CountTokens returns the token count for the given request.
@@ -629,7 +630,9 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 				return cliproxyexecutor.Response{}, errCtx
 			}
 			result.Error = &Error{Message: errExec.Error()}
-			if se, ok := errors.AsType[cliproxyexecutor.StatusError](errExec); ok && se != nil {
+			var se cliproxyexecutor.StatusError
+			if errors.As(errExec, &se) && se != nil {
+
 				result.Error.HTTPStatus = se.StatusCode()
 			}
 			if ra := retryAfterFromError(errExec); ra != nil {
@@ -685,7 +688,9 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 				return cliproxyexecutor.Response{}, errCtx
 			}
 			result.Error = &Error{Message: errExec.Error()}
-			if se, ok := errors.AsType[cliproxyexecutor.StatusError](errExec); ok && se != nil {
+			var se cliproxyexecutor.StatusError
+			if errors.As(errExec, &se) && se != nil {
+
 				result.Error.HTTPStatus = se.StatusCode()
 			}
 			if ra := retryAfterFromError(errExec); ra != nil {
@@ -740,7 +745,9 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 				return nil, errCtx
 			}
 			rerr := &Error{Message: errStream.Error()}
-			if se, ok := errors.AsType[cliproxyexecutor.StatusError](errStream); ok && se != nil {
+			var se cliproxyexecutor.StatusError
+			if errors.As(errStream, &se) && se != nil {
+
 				rerr.HTTPStatus = se.StatusCode()
 			}
 			result := Result{AuthID: auth.ID, Provider: provider, Model: routeModel, Success: false, Error: rerr}
@@ -761,7 +768,9 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 				if chunk.Err != nil && !failed {
 					failed = true
 					rerr := &Error{Message: chunk.Err.Error()}
-					if se, ok := errors.AsType[cliproxyexecutor.StatusError](chunk.Err); ok && se != nil {
+					var se cliproxyexecutor.StatusError
+					if errors.As(chunk.Err, &se) && se != nil {
+
 						rerr.HTTPStatus = se.StatusCode()
 					}
 					m.MarkResult(streamCtx, Result{AuthID: streamAuth.ID, Provider: streamProvider, Model: routeModel, Success: false, Error: rerr})
@@ -1494,7 +1503,8 @@ func retryAfterFromError(err error) *time.Duration {
 	if retryAfter == nil {
 		return nil
 	}
-	return new(*retryAfter)
+	return retryAfter
+
 }
 
 func statusCodeFromResult(err *Error) int {
@@ -2393,5 +2403,4 @@ func (m *Manager) HttpRequest(ctx context.Context, auth *Auth, req *http.Request
 
 const (
 	// CloseAllExecutionSessionsID asks an executor to release all active execution sessions.
-	CloseAllExecutionSessionsID = "__all_execution_sessions__"
 )

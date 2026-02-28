@@ -601,10 +601,12 @@ func (r *ModelRegistry) SetModelQuotaExceeded(clientID, modelID string) {
 	defer r.mutex.Unlock()
 
 	if registration, exists := r.models[modelID]; exists {
-		registration.QuotaExceededClients[clientID] = new(time.Now())
+		now := time.Now()
+		registration.QuotaExceededClients[clientID] = &now
 		log.Debugf("Marked model %s as quota exceeded for client %s", modelID, clientID)
 	}
 }
+
 
 // ClearModelQuotaExceeded removes quota exceeded status for a model and client
 // Parameters:

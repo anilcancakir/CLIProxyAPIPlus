@@ -219,7 +219,8 @@ func (e *KiloExecutor) ExecuteStream(
 	auth *cliproxyauth.Auth,
 	req cliproxyexecutor.Request,
 	opts cliproxyexecutor.Options,
-) (stream <-chan cliproxyexecutor.StreamChunk, err error) {
+) (stream *cliproxyexecutor.StreamResult, err error) {
+
 	baseModel := thinking.ParseSuffix(req.Model).ModelName
 
 	reporter := newUsageReporter(ctx, e.Identifier(), baseModel, auth)
@@ -308,7 +309,11 @@ func (e *KiloExecutor) ExecuteStream(
 
 	// 4. Fan SSE lines out over a channel for callers to consume.
 	out := make(chan cliproxyexecutor.StreamChunk)
-	stream = out
+	stream = &cliproxyexecutor.StreamResult{
+		Headers: httpResp.Header.Clone(),
+		Chunks:  out,
+	}
+
 
 	go func() {
 		defer close(out)

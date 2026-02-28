@@ -49,9 +49,10 @@ func TestFetchUserInfo_ReturnsLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if login != "octocat" {
-		t.Errorf("Login: got %q, want %q", login, "octocat")
+	if login.Login != "octocat" {
+		t.Errorf("Login: got %q, want %q", login.Login, "octocat")
 	}
+
 }
 
 // TestFetchUserInfo_EmptyToken verifies error is returned for empty access token.

@@ -70,15 +70,6 @@ type StreamChunk struct {
 	Err error
 }
 
-// StreamResult wraps the streaming response, providing both the chunk channel
-// and the upstream HTTP response headers captured before streaming begins.
-type StreamResult struct {
-	// Headers carries upstream HTTP response headers from the initial connection.
-	Headers http.Header
-	// Chunks is the channel of streaming payload units.
-	Chunks <-chan StreamChunk
-}
-
 // StatusError represents an error that carries an HTTP-like status code.
 // Provider executors should implement this when possible to enable
 // better auth state updates on failures (e.g., 401/402/429).
@@ -91,10 +82,6 @@ type StatusError interface {
 // and a cancel func that should be called when done to release resources early.
 type StreamResult struct {
 	Headers http.Header
-	Chunks <-chan StreamChunk
+	Chunks  <-chan StreamChunk
 	Cancel  context.CancelFunc
 }
-const (
-	// ExecutionSessionMetadataKey identifies a long-lived downstream execution session.
-	ExecutionSessionMetadataKey = "execution_session_id"
-)

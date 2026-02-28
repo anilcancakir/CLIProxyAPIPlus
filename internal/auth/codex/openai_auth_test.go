@@ -28,7 +28,8 @@ func TestRefreshTokensWithRetry_ReturnsErrorAfterMaxRetries(t *testing.T) {
 				atomic.AddInt32(&calls, 1)
 				return &http.Response{
 					StatusCode: http.StatusBadRequest,
-					Body:       io.NopCloser(strings.NewReader(`{"error":"invalid_grant","code":"refresh_token_reused"}`)),
+					Body:       io.NopCloser(strings.NewReader(`{"error":"internal_server_error"}`)),
+
 					Header:     make(http.Header),
 					Request:    req,
 				}, nil
