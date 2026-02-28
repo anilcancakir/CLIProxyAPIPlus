@@ -80,7 +80,7 @@ func (h *Handler) GetAntigravityQuota(c *gin.Context) {
 				Name:              m.Name,
 				DisplayName:       m.DisplayName,
 				RemainingFraction: m.RemainingFraction,
-				RemainingPercent:  m.RemainingPercent,
+				RemainingPercent:  m.RemainingPercent(),
 				ResetTime:         m.ResetTime,
 			})
 		}
