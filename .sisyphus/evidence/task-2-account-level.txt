@@ -1,8 +1,6 @@
 === RUN   TestRateLimitInfoIsModelLevel
 === RUN   TestRateLimitInfoIsModelLevel/account_level
-=== RUN   TestRateLimitInfoIsModelLevel/model_level
 --- PASS: TestRateLimitInfoIsModelLevel (0.00s)
     --- PASS: TestRateLimitInfoIsModelLevel/account_level (0.00s)
-    --- PASS: TestRateLimitInfoIsModelLevel/model_level (0.00s)
 PASS
-ok  	github.com/router-for-me/CLIProxyAPI/v6/internal/auth/antigravity	(cached)
+ok  	github.com/router-for-me/CLIProxyAPI/v6/internal/auth/antigravity	0.302s

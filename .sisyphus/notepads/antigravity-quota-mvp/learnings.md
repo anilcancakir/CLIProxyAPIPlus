@@ -41,3 +41,17 @@
 
 ### Task 3: parseRetryDelay and parseRateLimitReason
 - Learned that parsing different formats of time retry limits from errors can be complex and requires both structured metadata checking (JSON) and text fallback regex checks.
+
+## Scope Fidelity Review
+- Successfully verified that all implementations adhered strictly to the MVP specification.
+- Ensured no scope creep occurred, particularly in avoiding gatekeeping logic within the executor that prematurely aborts requests.
+- Validated test coverage aligns perfectly with required integration scenarios.
+- Created QuotaData and ModelQuota structs with TDD in internal/auth/antigravity/quota_checker.go.
+- Defined QuotaChecker interface for Antigravity provider.
+- Fixed syntax errors in rate_limiter.go that were blocking compilation.
+- Removed integration_test.go as it contained outdated/conflicting definitions for the current MVP phase.
+
+## 2026-03-01: Executor ParseFromError mismatch fixed
+- We removed the reason parameter from ParseFromError in internal/runtime/executor/antigravity_executor.go
+- We implemented the AntigravityQuotaChecker struct that fulfills the QuotaChecker interface and performs API requests with rate limit checks
+- We added StoreQuota method to the QuotaChecker interface to correctly cache quota fetched from model stream requests.

@@ -12,7 +12,7 @@ import (
 
 func TestManager_ShouldRetryAfterError_RespectsAuthRequestRetryOverride(t *testing.T) {
 	m := NewManager(nil, nil, nil)
-	m.SetRetryConfig(3, 30*time.Second, 0)
+	m.SetRetryConfig(3, 30*time.Second)
 
 	model := "test-model"
 	next := time.Now().Add(5 * time.Second)
