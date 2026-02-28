@@ -11,11 +11,13 @@ import (
 	"time"
 )
 
-const (
-	claudeUsageURL  = "https://api.anthropic.com/api/oauth/usage"
+var (
+	// ClaudeUsageURL is the Anthropic OAuth usage endpoint. Overridable in tests.
+	ClaudeUsageURL  = "https://api.anthropic.com/api/oauth/usage"
 	claudeOAuthBeta = "oauth-2025-04-20"
-	claudeQuotaTTL  = 5 * time.Minute
 )
+
+const claudeQuotaTTL = 5 * time.Minute
 
 type ClaudeUsageWindow struct {
 	Utilization float64
@@ -70,7 +72,7 @@ func (q *ClaudeQuotaChecker) FetchQuota(
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		claudeUsageURL,
+		ClaudeUsageURL,
 		nil,
 	)
 	if err != nil {

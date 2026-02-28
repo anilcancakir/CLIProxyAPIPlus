@@ -660,6 +660,7 @@ func (s *Server) registerManagementRoutes() {
 		mgmt.GET("/codex-auth-url", s.mgmt.RequestCodexToken)
 		mgmt.GET("/gemini-cli-auth-url", s.mgmt.RequestGeminiCLIToken)
 		mgmt.GET("/antigravity-quota", s.mgmt.GetAntigravityQuota)
+		mgmt.GET("/claude-quota", s.mgmt.GetClaudeQuota)
 		mgmt.GET("/antigravity-auth-url", s.mgmt.RequestAntigravityToken)
 		mgmt.GET("/qwen-auth-url", s.mgmt.RequestQwenToken)
 		mgmt.GET("/kilo-auth-url", s.mgmt.RequestKiloToken)
