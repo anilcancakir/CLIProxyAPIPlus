@@ -1,0 +1,329 @@
+=== RUN   TestAntigravityBuildRequest_RenamesParametersJsonSchema
+=== RUN   TestAntigravityBuildRequest_RenamesParametersJsonSchema/gemini-2.5-pro
+=== RUN   TestAntigravityBuildRequest_RenamesParametersJsonSchema/claude-opus-4-6
+--- PASS: TestAntigravityBuildRequest_RenamesParametersJsonSchema (0.00s)
+    --- PASS: TestAntigravityBuildRequest_RenamesParametersJsonSchema/gemini-2.5-pro (0.00s)
+    --- PASS: TestAntigravityBuildRequest_RenamesParametersJsonSchema/claude-opus-4-6 (0.00s)
+=== RUN   TestAntigravityBuildRequest_RemovesSchemaKeyword
+--- PASS: TestAntigravityBuildRequest_RemovesSchemaKeyword (0.00s)
+=== RUN   TestModelInfoClone_MutatingReturnedSliceLeavesOriginalIntact
+--- PASS: TestModelInfoClone_MutatingReturnedSliceLeavesOriginalIntact (0.00s)
+=== RUN   TestModelInfoThinkingLevels_FieldAccessible
+--- PASS: TestModelInfoThinkingLevels_FieldAccessible (0.00s)
+=== RUN   TestEnsureCacheControl
+=== RUN   TestEnsureCacheControl/String_System_Prompt
+=== RUN   TestEnsureCacheControl/Array_System_Prompt
+=== RUN   TestEnsureCacheControl/Tools_Caching
+=== RUN   TestEnsureCacheControl/Independent_Cache_Breakpoints
+=== RUN   TestEnsureCacheControl/Only_Tools_No_System
+=== RUN   TestEnsureCacheControl/Many_Tools_(Claude_Code_Scenario)
+    caching_verify_test.go:154: test passed: 50 tools - cache_control only on last tool
+=== RUN   TestEnsureCacheControl/Empty_Tools_Array
+=== RUN   TestEnsureCacheControl/Messages_Caching_Second-To-Last_User
+=== RUN   TestEnsureCacheControl/Messages_Skip_When_Cache_Control_Exists
+--- PASS: TestEnsureCacheControl (0.00s)
+    --- PASS: TestEnsureCacheControl/String_System_Prompt (0.00s)
+    --- PASS: TestEnsureCacheControl/Array_System_Prompt (0.00s)
+    --- PASS: TestEnsureCacheControl/Tools_Caching (0.00s)
+    --- PASS: TestEnsureCacheControl/Independent_Cache_Breakpoints (0.00s)
+    --- PASS: TestEnsureCacheControl/Only_Tools_No_System (0.00s)
+    --- PASS: TestEnsureCacheControl/Many_Tools_(Claude_Code_Scenario) (0.00s)
+    --- PASS: TestEnsureCacheControl/Empty_Tools_Array (0.00s)
+    --- PASS: TestEnsureCacheControl/Messages_Caching_Second-To-Last_User (0.00s)
+    --- PASS: TestEnsureCacheControl/Messages_Skip_When_Cache_Control_Exists (0.00s)
+=== RUN   TestCacheControlOrder
+    caching_verify_test.go:257: cache order correct: tools -> system
+--- PASS: TestCacheControlOrder (0.00s)
+=== RUN   TestApplyClaudeToolPrefix
+--- PASS: TestApplyClaudeToolPrefix (0.00s)
+=== RUN   TestApplyClaudeToolPrefix_WithToolReference
+--- PASS: TestApplyClaudeToolPrefix_WithToolReference (0.00s)
+=== RUN   TestApplyClaudeToolPrefix_SkipsBuiltinTools
+--- PASS: TestApplyClaudeToolPrefix_SkipsBuiltinTools (0.00s)
+=== RUN   TestApplyClaudeToolPrefix_BuiltinToolSkipped
+--- PASS: TestApplyClaudeToolPrefix_BuiltinToolSkipped (0.00s)
+=== RUN   TestApplyClaudeToolPrefix_KnownBuiltinInHistoryOnly
+--- PASS: TestApplyClaudeToolPrefix_KnownBuiltinInHistoryOnly (0.00s)
+=== RUN   TestApplyClaudeToolPrefix_CustomToolsPrefixed
+--- PASS: TestApplyClaudeToolPrefix_CustomToolsPrefixed (0.00s)
+=== RUN   TestApplyClaudeToolPrefix_ToolChoiceBuiltin
+--- PASS: TestApplyClaudeToolPrefix_ToolChoiceBuiltin (0.00s)
+=== RUN   TestStripClaudeToolPrefixFromResponse
+--- PASS: TestStripClaudeToolPrefixFromResponse (0.00s)
+=== RUN   TestStripClaudeToolPrefixFromResponse_WithToolReference
+--- PASS: TestStripClaudeToolPrefixFromResponse_WithToolReference (0.00s)
+=== RUN   TestStripClaudeToolPrefixFromStreamLine
+--- PASS: TestStripClaudeToolPrefixFromStreamLine (0.00s)
+=== RUN   TestStripClaudeToolPrefixFromStreamLine_WithToolReference
+--- PASS: TestStripClaudeToolPrefixFromStreamLine_WithToolReference (0.00s)
+=== RUN   TestApplyClaudeToolPrefix_NestedToolReference
+--- PASS: TestApplyClaudeToolPrefix_NestedToolReference (0.00s)
+=== RUN   TestClaudeExecutor_ReusesUserIDAcrossModelsWhenCacheEnabled
+    claude_executor_test.go:228: End-to-end test: Fake HTTP server started at http://127.0.0.1:61167
+    claude_executor_test.go:250: Sending request for model: claude-3-5-sonnet
+    claude_executor_test.go:222: HTTP Server received request: model=claude-3-5-sonnet, user_id=user_af84724255e2ff917852c4182e4bf2f313d4e385c2a5b2c4cff4d28fbc02a23a_account__session_056fad8a-2f8a-4377-8e9a-eb8199fe3962, url=/v1/messages?beta=true
+    claude_executor_test.go:250: Sending request for model: claude-3-5-haiku
+    claude_executor_test.go:222: HTTP Server received request: model=claude-3-5-haiku, user_id=user_af84724255e2ff917852c4182e4bf2f313d4e385c2a5b2c4cff4d28fbc02a23a_account__session_056fad8a-2f8a-4377-8e9a-eb8199fe3962, url=/v1/messages?beta=true
+    claude_executor_test.go:268: user_id[0] (model=claude-3-5-sonnet): user_af84724255e2ff917852c4182e4bf2f313d4e385c2a5b2c4cff4d28fbc02a23a_account__session_056fad8a-2f8a-4377-8e9a-eb8199fe3962
+    claude_executor_test.go:269: user_id[1] (model=claude-3-5-haiku): user_af84724255e2ff917852c4182e4bf2f313d4e385c2a5b2c4cff4d28fbc02a23a_account__session_056fad8a-2f8a-4377-8e9a-eb8199fe3962
+    claude_executor_test.go:276: ✓ End-to-end test passed: Same user_id (user_af84724255e2ff917852c4182e4bf2f313d4e385c2a5b2c4cff4d28fbc02a23a_account__session_056fad8a-2f8a-4377-8e9a-eb8199fe3962) was used for both models
+--- PASS: TestClaudeExecutor_ReusesUserIDAcrossModelsWhenCacheEnabled (0.01s)
+=== RUN   TestClaudeExecutor_GeneratesNewUserIDByDefault
+--- PASS: TestClaudeExecutor_GeneratesNewUserIDByDefault (0.00s)
+=== RUN   TestStripClaudeToolPrefixFromResponse_NestedToolReference
+--- PASS: TestStripClaudeToolPrefixFromResponse_NestedToolReference (0.00s)
+=== RUN   TestApplyClaudeToolPrefix_NestedToolReferenceWithStringContent
+--- PASS: TestApplyClaudeToolPrefix_NestedToolReferenceWithStringContent (0.00s)
+=== RUN   TestApplyClaudeToolPrefix_SkipsBuiltinToolReference
+--- PASS: TestApplyClaudeToolPrefix_SkipsBuiltinToolReference (0.00s)
+=== RUN   TestParseCodexRetryAfter
+=== RUN   TestParseCodexRetryAfter/resets_in_seconds
+=== RUN   TestParseCodexRetryAfter/prefers_resets_at
+=== RUN   TestParseCodexRetryAfter/fallback_when_resets_at_is_past
+=== RUN   TestParseCodexRetryAfter/non-429_status_code
+=== RUN   TestParseCodexRetryAfter/non_usage_limit_reached_error_type
+--- PASS: TestParseCodexRetryAfter (0.00s)
+    --- PASS: TestParseCodexRetryAfter/resets_in_seconds (0.00s)
+    --- PASS: TestParseCodexRetryAfter/prefers_resets_at (0.00s)
+    --- PASS: TestParseCodexRetryAfter/fallback_when_resets_at_is_past (0.00s)
+    --- PASS: TestParseCodexRetryAfter/non-429_status_code (0.00s)
+    --- PASS: TestParseCodexRetryAfter/non_usage_limit_reached_error_type (0.00s)
+=== RUN   TestGitHubCopilotNormalizeModel_StripsSuffix
+=== PAUSE TestGitHubCopilotNormalizeModel_StripsSuffix
+=== RUN   TestIsGPT5Model
+=== PAUSE TestIsGPT5Model
+=== RUN   TestIsCopilotClaudeModel
+=== PAUSE TestIsCopilotClaudeModel
+=== RUN   TestNormalizeGitHubCopilotChatTools_KeepFunctionOnly
+=== PAUSE TestNormalizeGitHubCopilotChatTools_KeepFunctionOnly
+=== RUN   TestNormalizeGitHubCopilotChatTools_InvalidToolChoiceDowngradeToAuto
+=== PAUSE TestNormalizeGitHubCopilotChatTools_InvalidToolChoiceDowngradeToAuto
+=== RUN   TestNormalizeGitHubCopilotResponsesInput_MissingInputExtractedFromSystemAndMessages
+=== PAUSE TestNormalizeGitHubCopilotResponsesInput_MissingInputExtractedFromSystemAndMessages
+=== RUN   TestNormalizeGitHubCopilotResponsesInput_NonStringInputStringified
+=== PAUSE TestNormalizeGitHubCopilotResponsesInput_NonStringInputStringified
+=== RUN   TestNormalizeGitHubCopilotResponsesTools_FlattenFunctionTools
+=== PAUSE TestNormalizeGitHubCopilotResponsesTools_FlattenFunctionTools
+=== RUN   TestNormalizeGitHubCopilotResponsesTools_ClaudeFormatTools
+=== PAUSE TestNormalizeGitHubCopilotResponsesTools_ClaudeFormatTools
+=== RUN   TestNormalizeGitHubCopilotResponsesTools_FlattenToolChoiceFunctionObject
+=== PAUSE TestNormalizeGitHubCopilotResponsesTools_FlattenToolChoiceFunctionObject
+=== RUN   TestNormalizeGitHubCopilotResponsesTools_InvalidToolChoiceDowngradeToAuto
+=== PAUSE TestNormalizeGitHubCopilotResponsesTools_InvalidToolChoiceDowngradeToAuto
+=== RUN   TestTranslateGitHubCopilotResponsesNonStreamToClaude_TextMapping
+=== PAUSE TestTranslateGitHubCopilotResponsesNonStreamToClaude_TextMapping
+=== RUN   TestTranslateGitHubCopilotResponsesNonStreamToClaude_ToolUseMapping
+=== PAUSE TestTranslateGitHubCopilotResponsesNonStreamToClaude_ToolUseMapping
+=== RUN   TestTranslateGitHubCopilotResponsesStreamToClaude_TextLifecycle
+=== PAUSE TestTranslateGitHubCopilotResponsesStreamToClaude_TextLifecycle
+=== RUN   TestApplyHeaders_XInitiator_UserOnly
+=== PAUSE TestApplyHeaders_XInitiator_UserOnly
+=== RUN   TestApplyHeaders_XInitiator_AgentWithAssistantAndUserToolResult
+=== PAUSE TestApplyHeaders_XInitiator_AgentWithAssistantAndUserToolResult
+=== RUN   TestApplyHeaders_XInitiator_AgentWithToolRole
+=== PAUSE TestApplyHeaders_XInitiator_AgentWithToolRole
+=== RUN   TestApplyHeaders_GitHubAPIVersion
+=== PAUSE TestApplyHeaders_GitHubAPIVersion
+=== RUN   TestDetectVisionContent_WithImageURL
+=== PAUSE TestDetectVisionContent_WithImageURL
+=== RUN   TestDetectVisionContent_WithImageType
+=== PAUSE TestDetectVisionContent_WithImageType
+=== RUN   TestDetectVisionContent_NoVision
+=== PAUSE TestDetectVisionContent_NoVision
+=== RUN   TestDetectVisionContent_NoMessages
+=== PAUSE TestDetectVisionContent_NoMessages
+=== RUN   TestIFlowExecutorParseSuffix
+=== RUN   TestIFlowExecutorParseSuffix/no_suffix
+=== RUN   TestIFlowExecutorParseSuffix/glm_with_suffix
+=== RUN   TestIFlowExecutorParseSuffix/minimax_no_suffix
+=== RUN   TestIFlowExecutorParseSuffix/minimax_with_suffix
+--- PASS: TestIFlowExecutorParseSuffix (0.00s)
+    --- PASS: TestIFlowExecutorParseSuffix/no_suffix (0.00s)
+    --- PASS: TestIFlowExecutorParseSuffix/glm_with_suffix (0.00s)
+    --- PASS: TestIFlowExecutorParseSuffix/minimax_no_suffix (0.00s)
+    --- PASS: TestIFlowExecutorParseSuffix/minimax_with_suffix (0.00s)
+=== RUN   TestPreserveReasoningContentInMessages
+=== RUN   TestPreserveReasoningContentInMessages/non-glm_model_passthrough
+=== RUN   TestPreserveReasoningContentInMessages/glm_model_with_empty_messages
+=== RUN   TestPreserveReasoningContentInMessages/glm_model_preserves_existing_reasoning_content
+--- PASS: TestPreserveReasoningContentInMessages (0.00s)
+    --- PASS: TestPreserveReasoningContentInMessages/non-glm_model_passthrough (0.00s)
+    --- PASS: TestPreserveReasoningContentInMessages/glm_model_with_empty_messages (0.00s)
+    --- PASS: TestPreserveReasoningContentInMessages/glm_model_preserves_existing_reasoning_content (0.00s)
+=== RUN   TestNormalizeKimiToolMessageLinks_UsesCallIDFallback
+--- PASS: TestNormalizeKimiToolMessageLinks_UsesCallIDFallback (0.00s)
+=== RUN   TestNormalizeKimiToolMessageLinks_InferSinglePendingID
+--- PASS: TestNormalizeKimiToolMessageLinks_InferSinglePendingID (0.00s)
+=== RUN   TestNormalizeKimiToolMessageLinks_AmbiguousMissingIDIsNotInferred
+time="2026-02-28T18:17:24+03:00" level=warning msg="kimi executor: tool messages missing tool_call_id with ambiguous candidates" ambiguous_tool_messages=1 pending_tool_calls=2
+--- PASS: TestNormalizeKimiToolMessageLinks_AmbiguousMissingIDIsNotInferred (0.00s)
+=== RUN   TestNormalizeKimiToolMessageLinks_PreservesExistingToolCallID
+--- PASS: TestNormalizeKimiToolMessageLinks_PreservesExistingToolCallID (0.00s)
+=== RUN   TestNormalizeKimiToolMessageLinks_InheritsPreviousReasoningForAssistantToolCalls
+--- PASS: TestNormalizeKimiToolMessageLinks_InheritsPreviousReasoningForAssistantToolCalls (0.00s)
+=== RUN   TestNormalizeKimiToolMessageLinks_InsertsFallbackReasoningWhenMissing
+--- PASS: TestNormalizeKimiToolMessageLinks_InsertsFallbackReasoningWhenMissing (0.00s)
+=== RUN   TestNormalizeKimiToolMessageLinks_UsesContentAsReasoningFallback
+--- PASS: TestNormalizeKimiToolMessageLinks_UsesContentAsReasoningFallback (0.00s)
+=== RUN   TestNormalizeKimiToolMessageLinks_ReplacesEmptyReasoningContent
+--- PASS: TestNormalizeKimiToolMessageLinks_ReplacesEmptyReasoningContent (0.00s)
+=== RUN   TestNormalizeKimiToolMessageLinks_PreservesExistingAssistantReasoning
+--- PASS: TestNormalizeKimiToolMessageLinks_PreservesExistingAssistantReasoning (0.00s)
+=== RUN   TestNormalizeKimiToolMessageLinks_RepairsIDsAndReasoningTogether
+--- PASS: TestNormalizeKimiToolMessageLinks_RepairsIDsAndReasoningTogether (0.00s)
+=== RUN   TestBuildKiroEndpointConfigs
+=== RUN   TestBuildKiroEndpointConfigs/Empty_region_-_defaults_to_us-east-1
+=== RUN   TestBuildKiroEndpointConfigs/us-east-1
+=== RUN   TestBuildKiroEndpointConfigs/ap-southeast-1
+=== RUN   TestBuildKiroEndpointConfigs/eu-west-1
+--- PASS: TestBuildKiroEndpointConfigs (0.00s)
+    --- PASS: TestBuildKiroEndpointConfigs/Empty_region_-_defaults_to_us-east-1 (0.00s)
+    --- PASS: TestBuildKiroEndpointConfigs/us-east-1 (0.00s)
+    --- PASS: TestBuildKiroEndpointConfigs/ap-southeast-1 (0.00s)
+    --- PASS: TestBuildKiroEndpointConfigs/eu-west-1 (0.00s)
+=== RUN   TestGetKiroEndpointConfigs_NilAuth
+--- PASS: TestGetKiroEndpointConfigs_NilAuth (0.00s)
+=== RUN   TestGetKiroEndpointConfigs_WithRegionFromProfileArn
+--- PASS: TestGetKiroEndpointConfigs_WithRegionFromProfileArn (0.00s)
+=== RUN   TestGetKiroEndpointConfigs_WithApiRegionOverride
+--- PASS: TestGetKiroEndpointConfigs_WithApiRegionOverride (0.00s)
+=== RUN   TestGetKiroEndpointConfigs_PreferredEndpoint
+=== RUN   TestGetKiroEndpointConfigs_PreferredEndpoint/Prefer_codewhisperer
+=== RUN   TestGetKiroEndpointConfigs_PreferredEndpoint/Prefer_ide_(alias_for_codewhisperer)
+=== RUN   TestGetKiroEndpointConfigs_PreferredEndpoint/Prefer_amazonq
+=== RUN   TestGetKiroEndpointConfigs_PreferredEndpoint/Prefer_q_(alias_for_amazonq)
+=== RUN   TestGetKiroEndpointConfigs_PreferredEndpoint/Prefer_cli_(alias_for_amazonq)
+=== RUN   TestGetKiroEndpointConfigs_PreferredEndpoint/Unknown_preference_-_no_reordering
+=== RUN   TestGetKiroEndpointConfigs_PreferredEndpoint/Empty_preference_-_no_reordering
+--- PASS: TestGetKiroEndpointConfigs_PreferredEndpoint (0.00s)
+    --- PASS: TestGetKiroEndpointConfigs_PreferredEndpoint/Prefer_codewhisperer (0.00s)
+    --- PASS: TestGetKiroEndpointConfigs_PreferredEndpoint/Prefer_ide_(alias_for_codewhisperer) (0.00s)
+    --- PASS: TestGetKiroEndpointConfigs_PreferredEndpoint/Prefer_amazonq (0.00s)
+    --- PASS: TestGetKiroEndpointConfigs_PreferredEndpoint/Prefer_q_(alias_for_amazonq) (0.00s)
+    --- PASS: TestGetKiroEndpointConfigs_PreferredEndpoint/Prefer_cli_(alias_for_amazonq) (0.00s)
+    --- PASS: TestGetKiroEndpointConfigs_PreferredEndpoint/Unknown_preference_-_no_reordering (0.00s)
+    --- PASS: TestGetKiroEndpointConfigs_PreferredEndpoint/Empty_preference_-_no_reordering (0.00s)
+=== RUN   TestGetKiroEndpointConfigs_PreferredEndpointFromAttributes
+--- PASS: TestGetKiroEndpointConfigs_PreferredEndpointFromAttributes (0.00s)
+=== RUN   TestGetKiroEndpointConfigs_MetadataTakesPrecedenceOverAttributes
+--- PASS: TestGetKiroEndpointConfigs_MetadataTakesPrecedenceOverAttributes (0.00s)
+=== RUN   TestGetAuthValue
+=== RUN   TestGetAuthValue/From_metadata
+=== RUN   TestGetAuthValue/From_attributes_(fallback)
+=== RUN   TestGetAuthValue/Metadata_takes_precedence
+=== RUN   TestGetAuthValue/Key_not_found
+=== RUN   TestGetAuthValue/Nil_metadata
+=== RUN   TestGetAuthValue/Both_nil
+=== RUN   TestGetAuthValue/Value_is_trimmed_and_lowercased
+=== RUN   TestGetAuthValue/Empty_string_value_in_metadata_-_falls_back_to_attributes
+=== RUN   TestGetAuthValue/Non-string_value_in_metadata_-_falls_back_to_attributes
+--- PASS: TestGetAuthValue (0.00s)
+    --- PASS: TestGetAuthValue/From_metadata (0.00s)
+    --- PASS: TestGetAuthValue/From_attributes_(fallback) (0.00s)
+    --- PASS: TestGetAuthValue/Metadata_takes_precedence (0.00s)
+    --- PASS: TestGetAuthValue/Key_not_found (0.00s)
+    --- PASS: TestGetAuthValue/Nil_metadata (0.00s)
+    --- PASS: TestGetAuthValue/Both_nil (0.00s)
+    --- PASS: TestGetAuthValue/Value_is_trimmed_and_lowercased (0.00s)
+    --- PASS: TestGetAuthValue/Empty_string_value_in_metadata_-_falls_back_to_attributes (0.00s)
+    --- PASS: TestGetAuthValue/Non-string_value_in_metadata_-_falls_back_to_attributes (0.00s)
+=== RUN   TestGetAccountKey
+=== RUN   TestGetAccountKey/From_client_id
+=== RUN   TestGetAccountKey/From_refresh_token_only
+=== RUN   TestGetAccountKey/Nil_auth
+=== RUN   TestGetAccountKey/Nil_metadata
+=== RUN   TestGetAccountKey/Empty_metadata
+--- PASS: TestGetAccountKey (0.00s)
+    --- PASS: TestGetAccountKey/From_client_id (0.00s)
+    --- PASS: TestGetAccountKey/From_refresh_token_only (0.00s)
+    --- PASS: TestGetAccountKey/Nil_auth (0.00s)
+    --- PASS: TestGetAccountKey/Nil_metadata (0.00s)
+    --- PASS: TestGetAccountKey/Empty_metadata (0.00s)
+=== RUN   TestEndpointAliases
+--- PASS: TestEndpointAliases (0.00s)
+=== RUN   TestOpenAICompatExecutorCompactPassthrough
+--- PASS: TestOpenAICompatExecutorCompactPassthrough (0.00s)
+=== RUN   TestQwenExecutorParseSuffix
+=== RUN   TestQwenExecutorParseSuffix/no_suffix
+=== RUN   TestQwenExecutorParseSuffix/with_level_suffix
+=== RUN   TestQwenExecutorParseSuffix/with_budget_suffix
+=== RUN   TestQwenExecutorParseSuffix/complex_model_name
+--- PASS: TestQwenExecutorParseSuffix (0.00s)
+    --- PASS: TestQwenExecutorParseSuffix/no_suffix (0.00s)
+    --- PASS: TestQwenExecutorParseSuffix/with_level_suffix (0.00s)
+    --- PASS: TestQwenExecutorParseSuffix/with_budget_suffix (0.00s)
+    --- PASS: TestQwenExecutorParseSuffix/complex_model_name (0.00s)
+=== RUN   TestParseOpenAIUsageChatCompletions
+--- PASS: TestParseOpenAIUsageChatCompletions (0.00s)
+=== RUN   TestParseOpenAIUsageResponses
+--- PASS: TestParseOpenAIUsageResponses (0.00s)
+=== RUN   TestCachedUserID_ReusesWithinTTL
+--- PASS: TestCachedUserID_ReusesWithinTTL (0.00s)
+=== RUN   TestCachedUserID_ExpiresAfterTTL
+--- PASS: TestCachedUserID_ExpiresAfterTTL (0.00s)
+=== RUN   TestCachedUserID_IsScopedByAPIKey
+--- PASS: TestCachedUserID_IsScopedByAPIKey (0.00s)
+=== RUN   TestCachedUserID_RenewsTTLOnHit
+--- PASS: TestCachedUserID_RenewsTTLOnHit (0.00s)
+=== CONT  TestGitHubCopilotNormalizeModel_StripsSuffix
+=== RUN   TestGitHubCopilotNormalizeModel_StripsSuffix/suffix_stripped
+=== PAUSE TestGitHubCopilotNormalizeModel_StripsSuffix/suffix_stripped
+=== RUN   TestGitHubCopilotNormalizeModel_StripsSuffix/no_suffix_unchanged
+=== PAUSE TestGitHubCopilotNormalizeModel_StripsSuffix/no_suffix_unchanged
+=== RUN   TestGitHubCopilotNormalizeModel_StripsSuffix/different_suffix_stripped
+=== PAUSE TestGitHubCopilotNormalizeModel_StripsSuffix/different_suffix_stripped
+=== RUN   TestGitHubCopilotNormalizeModel_StripsSuffix/numeric_suffix_stripped
+=== PAUSE TestGitHubCopilotNormalizeModel_StripsSuffix/numeric_suffix_stripped
+=== CONT  TestGitHubCopilotNormalizeModel_StripsSuffix/suffix_stripped
+=== CONT  TestDetectVisionContent_NoMessages
+--- PASS: TestDetectVisionContent_NoMessages (0.00s)
+=== CONT  TestDetectVisionContent_NoVision
+--- PASS: TestDetectVisionContent_NoVision (0.00s)
+=== CONT  TestDetectVisionContent_WithImageType
+--- PASS: TestDetectVisionContent_WithImageType (0.00s)
+=== CONT  TestDetectVisionContent_WithImageURL
+--- PASS: TestDetectVisionContent_WithImageURL (0.00s)
+=== CONT  TestApplyHeaders_GitHubAPIVersion
+--- PASS: TestApplyHeaders_GitHubAPIVersion (0.00s)
+=== CONT  TestApplyHeaders_XInitiator_AgentWithToolRole
+--- PASS: TestApplyHeaders_XInitiator_AgentWithToolRole (0.00s)
+=== CONT  TestApplyHeaders_XInitiator_AgentWithAssistantAndUserToolResult
+--- PASS: TestApplyHeaders_XInitiator_AgentWithAssistantAndUserToolResult (0.00s)
+=== CONT  TestApplyHeaders_XInitiator_UserOnly
+--- PASS: TestApplyHeaders_XInitiator_UserOnly (0.00s)
+=== CONT  TestTranslateGitHubCopilotResponsesStreamToClaude_TextLifecycle
+--- PASS: TestTranslateGitHubCopilotResponsesStreamToClaude_TextLifecycle (0.00s)
+=== CONT  TestTranslateGitHubCopilotResponsesNonStreamToClaude_ToolUseMapping
+--- PASS: TestTranslateGitHubCopilotResponsesNonStreamToClaude_ToolUseMapping (0.00s)
+=== CONT  TestTranslateGitHubCopilotResponsesNonStreamToClaude_TextMapping
+--- PASS: TestTranslateGitHubCopilotResponsesNonStreamToClaude_TextMapping (0.00s)
+=== CONT  TestNormalizeGitHubCopilotResponsesTools_InvalidToolChoiceDowngradeToAuto
+--- PASS: TestNormalizeGitHubCopilotResponsesTools_InvalidToolChoiceDowngradeToAuto (0.00s)
+=== CONT  TestNormalizeGitHubCopilotResponsesTools_FlattenToolChoiceFunctionObject
+--- PASS: TestNormalizeGitHubCopilotResponsesTools_FlattenToolChoiceFunctionObject (0.00s)
+=== CONT  TestNormalizeGitHubCopilotResponsesTools_ClaudeFormatTools
+--- PASS: TestNormalizeGitHubCopilotResponsesTools_ClaudeFormatTools (0.00s)
+=== CONT  TestNormalizeGitHubCopilotResponsesTools_FlattenFunctionTools
+--- PASS: TestNormalizeGitHubCopilotResponsesTools_FlattenFunctionTools (0.00s)
+=== CONT  TestNormalizeGitHubCopilotResponsesInput_NonStringInputStringified
+--- PASS: TestNormalizeGitHubCopilotResponsesInput_NonStringInputStringified (0.00s)
+=== CONT  TestNormalizeGitHubCopilotResponsesInput_MissingInputExtractedFromSystemAndMessages
+--- PASS: TestNormalizeGitHubCopilotResponsesInput_MissingInputExtractedFromSystemAndMessages (0.00s)
+=== CONT  TestNormalizeGitHubCopilotChatTools_InvalidToolChoiceDowngradeToAuto
+--- PASS: TestNormalizeGitHubCopilotChatTools_InvalidToolChoiceDowngradeToAuto (0.00s)
+=== CONT  TestNormalizeGitHubCopilotChatTools_KeepFunctionOnly
+--- PASS: TestNormalizeGitHubCopilotChatTools_KeepFunctionOnly (0.00s)
+=== CONT  TestIsCopilotClaudeModel
+--- PASS: TestIsCopilotClaudeModel (0.00s)
+=== CONT  TestIsGPT5Model
+--- PASS: TestIsGPT5Model (0.00s)
+=== CONT  TestGitHubCopilotNormalizeModel_StripsSuffix/numeric_suffix_stripped
+=== CONT  TestGitHubCopilotNormalizeModel_StripsSuffix/different_suffix_stripped
+=== CONT  TestGitHubCopilotNormalizeModel_StripsSuffix/no_suffix_unchanged
+--- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix (0.00s)
+    --- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix/suffix_stripped (0.00s)
+    --- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix/numeric_suffix_stripped (0.00s)
+    --- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix/different_suffix_stripped (0.00s)
+    --- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix/no_suffix_unchanged (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v6/internal/runtime/executor	0.339s
