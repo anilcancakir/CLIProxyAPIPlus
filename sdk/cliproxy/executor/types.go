@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 
@@ -63,3 +64,15 @@ type StatusError interface {
 	error
 	StatusCode() int
 }
+
+// StreamResult wraps the streaming response, providing both the chunk channel
+// and a cancel func that should be called when done to release resources early.
+type StreamResult struct {
+	Headers http.Header
+	Chunks <-chan StreamChunk
+	Cancel  context.CancelFunc
+}
+const (
+	// ExecutionSessionMetadataKey identifies a long-lived downstream execution session.
+	ExecutionSessionMetadataKey = "execution_session_id"
+)

@@ -169,6 +169,8 @@ type QuotaExceeded struct {
 
 	// SwitchPreviewModel indicates whether to automatically switch to a preview model when a quota is exceeded.
 	SwitchPreviewModel bool `yaml:"switch-preview-model" json:"switch-preview-model"`
+
+	FallbackModels map[string]string `yaml:"fallback-models" json:"fallback-models"`
 }
 
 // RoutingConfig configures how credentials are selected for requests.

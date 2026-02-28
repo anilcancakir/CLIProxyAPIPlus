@@ -125,3 +125,18 @@ func WritablePath() string {
 	}
 	return ""
 }
+
+// RedactAPIKey completely redacts an API key for secure logging.
+// e.g. "sk-1234567890abcdef" -> "sk-...cdef"
+func RedactAPIKey(apiKey string) string {
+	if len(apiKey) < 8 {
+		return "***"
+	}
+	
+	prefix := 3
+	if strings.HasPrefix(apiKey, "sk-") {
+		prefix = 5
+	}
+	
+	return apiKey[:prefix] + "..." + apiKey[len(apiKey)-4:]
+}

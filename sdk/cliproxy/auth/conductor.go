@@ -2259,3 +2259,8 @@ func (m *Manager) HttpRequest(ctx context.Context, auth *Auth, req *http.Request
 	}
 	return exec.HttpRequest(ctx, auth, req)
 }
+
+const (
+	// CloseAllExecutionSessionsID asks an executor to release all active execution sessions.
+	CloseAllExecutionSessionsID = "__all_execution_sessions__"
+)
