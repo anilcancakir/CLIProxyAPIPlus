@@ -75,7 +75,6 @@ type RateLimiter interface {
 		retryAfterHeader *string,
 		body []byte,
 		model *string,
-		reason RateLimitReason,
 	) *RateLimitInfo
 
 	// MarkSuccess clears any transient rate limit state for the account.
@@ -89,7 +88,6 @@ type RateLimiter interface {
 		model *string,
 	)
 }
-
 
 type rateLimitEntry struct {
 	info      *RateLimitInfo
@@ -140,8 +138,9 @@ func (rl *AntigravityRateLimiter) ParseFromError(
 	retryAfterHeader *string,
 	body []byte,
 	model *string,
-	reason RateLimitReason,
 ) *RateLimitInfo {
+	var reason RateLimitReason = Unknown
+
 	isServerError := status >= 500 || status == 404
 	if isServerError {
 		reason = ServerError
