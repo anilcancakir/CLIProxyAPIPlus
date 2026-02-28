@@ -68,6 +68,7 @@ var (
 	antigravityRateLimiterOnce sync.Once
 	antigravityRateLimiter     *antigravity.AntigravityRateLimiter
 )
+
 func getAntigravityQuotaChecker(cfg *config.Config) *antigravity.AntigravityQuotaChecker {
 	antigravityQuotaCheckerOnce.Do(func() {
 		httpClient := newProxyAwareHTTPClient(context.Background(), cfg, nil, 0)
@@ -1294,7 +1295,7 @@ func FetchAntigravityModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *c
 	token, updatedAuth, errToken := exec.ensureAccessToken(ctx, auth)
 	if errToken != nil || token == "" {
 		return fallbackAntigravityPrimaryModels()
-  }
+	}
 	if updatedAuth != nil {
 		auth = updatedAuth
 	}

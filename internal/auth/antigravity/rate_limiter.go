@@ -220,24 +220,21 @@ func (rl *AntigravityRateLimiter) defaultDurationForReason(reason RateLimitReaso
 
 func extractDurationFromBody(body []byte) time.Duration {
 	s := string(body)
-	if re := regexp.MustCompile(`(\d+)m\s*(\d+)s`); true {
-		if m := re.FindStringSubmatch(s); len(m) == 3 {
-			mins, _ := strconv.Atoi(m[1])
-			secs, _ := strconv.Atoi(m[2])
-			return time.Duration(mins*60+secs) * time.Second
-		}
+	re := regexp.MustCompile(`(\d+)m\s*(\d+)s`)
+	if m := re.FindStringSubmatch(s); len(m) == 3 {
+		mins, _ := strconv.Atoi(m[1])
+		secs, _ := strconv.Atoi(m[2])
+		return time.Duration(mins*60+secs) * time.Second
 	}
-	if re := regexp.MustCompile(`after\s+(\d+)s`); true {
-		if m := re.FindStringSubmatch(s); len(m) == 2 {
-			secs, _ := strconv.Atoi(m[1])
-			return time.Duration(secs) * time.Second
-		}
+	re2 := regexp.MustCompile(`after\s+(\d+)s`)
+	if m := re2.FindStringSubmatch(s); len(m) == 2 {
+		secs, _ := strconv.Atoi(m[1])
+		return time.Duration(secs) * time.Second
 	}
-	if re := regexp.MustCompile(`(\d+)\s*second`); true {
-		if m := re.FindStringSubmatch(s); len(m) == 2 {
-			secs, _ := strconv.Atoi(m[1])
-			return time.Duration(secs) * time.Second
-		}
+	re3 := regexp.MustCompile(`(\d+)\s*second`)
+	if m := re3.FindStringSubmatch(s); len(m) == 2 {
+		secs, _ := strconv.Atoi(m[1])
+		return time.Duration(secs) * time.Second
 	}
 	return 0
 }
