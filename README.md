@@ -42,7 +42,16 @@ Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/
 - **Claude Request Sanitization** — strips placeholder fields from tool schemas
 - **OpenAI Images API** — cross-provider image generation (DALL-E format → Gemini Imagen)
 - **Extended Config Types** — SDK consumable as a Go library
-- **OAuth Provider Priority** — YAML config controls provider preference; JSON `"priority"` field per-account overrides
+
+### OAuth Provider Priority
+
+User-controllable priority for OAuth providers and individual accounts:
+
+- **Provider-level** — `oauth-provider-priority` map in `config.yaml` sets integer priority per provider
+- **Account-level** — `"priority"` field in a JSON auth file overrides the provider config
+- Resolution: JSON account priority > provider config > default 0
+- Explicit `"priority": 0` in JSON overrides a non-zero provider config (zero is not "unset")
+- Backward compatible — missing `oauth-provider-priority` in config works unchanged
 
 ### Additional Providers
 
