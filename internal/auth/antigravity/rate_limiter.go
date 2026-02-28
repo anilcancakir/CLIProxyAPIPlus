@@ -1,10 +1,11 @@
 package antigravity
 
 import (
-	"regexp"
+"regexp"
 	"strconv"
-	"sync"
-	"time"
+	"strings"
+"sync"
+"time"
 )
 
 // RateLimitReason represents the reason for a rate limit event.
@@ -133,18 +134,27 @@ func getLimitKey(accountID string, reason RateLimitReason, model *string) string
 }
 
 func (rl *AntigravityRateLimiter) ParseFromError(
-	accountID string,
-	status int,
-	retryAfterHeader *string,
-	body []byte,
-	model *string,
+accountID string,
+status int,
+retryAfterHeader *string,
+body []byte,
+model *string,
 ) *RateLimitInfo {
 	var reason RateLimitReason = Unknown
+	lowerBody := strings.ToLower(string(body))
+	if strings.Contains(lowerBody, "quota exhausted") {
+		reason = QuotaExhausted
+	} else if strings.Contains(lowerBody, "rate limit exceeded") {
+		reason = RateLimitExceeded
+	} else if strings.Contains(lowerBody, "model capacity") {
+		reason = ModelCapacityExhausted
+	}
 
 	isServerError := status >= 500 || status == 404
 	if isServerError {
 		reason = ServerError
 	}
+
 
 	var duration time.Duration
 
@@ -219,7 +229,10 @@ func (rl *AntigravityRateLimiter) defaultDurationForReason(reason RateLimitReaso
 
 func extractDurationFromBody(body []byte) time.Duration {
 	s := string(body)
-	re := regexp.MustCompile(`(\d+)m\s*(\d+)s`)
+	if strings.Contains(strings.ToLower(s), "quota exhausted") {
+		return 0
+	}
+re := regexp.MustCompile(`(\d+)m\s*(\d+)s`)
 	if m := re.FindStringSubmatch(s); len(m) == 3 {
 		mins, _ := strconv.Atoi(m[1])
 		secs, _ := strconv.Atoi(m[2])
