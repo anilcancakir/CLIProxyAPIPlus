@@ -59,15 +59,15 @@
 === RUN   TestApplyClaudeToolPrefix_NestedToolReference
 --- PASS: TestApplyClaudeToolPrefix_NestedToolReference (0.00s)
 === RUN   TestClaudeExecutor_ReusesUserIDAcrossModelsWhenCacheEnabled
-    claude_executor_test.go:228: End-to-end test: Fake HTTP server started at http://127.0.0.1:61167
+    claude_executor_test.go:228: End-to-end test: Fake HTTP server started at http://127.0.0.1:61719
     claude_executor_test.go:250: Sending request for model: claude-3-5-sonnet
-    claude_executor_test.go:222: HTTP Server received request: model=claude-3-5-sonnet, user_id=user_af84724255e2ff917852c4182e4bf2f313d4e385c2a5b2c4cff4d28fbc02a23a_account__session_056fad8a-2f8a-4377-8e9a-eb8199fe3962, url=/v1/messages?beta=true
+    claude_executor_test.go:222: HTTP Server received request: model=claude-3-5-sonnet, user_id=user_54f4dc92d5ca384f1e3489ad5d7d0d2368ecc31cec644909d1540b5e2ecc68e7_account__session_a267c049-cc9e-48c7-96d6-af4700561ec8, url=/v1/messages?beta=true
     claude_executor_test.go:250: Sending request for model: claude-3-5-haiku
-    claude_executor_test.go:222: HTTP Server received request: model=claude-3-5-haiku, user_id=user_af84724255e2ff917852c4182e4bf2f313d4e385c2a5b2c4cff4d28fbc02a23a_account__session_056fad8a-2f8a-4377-8e9a-eb8199fe3962, url=/v1/messages?beta=true
-    claude_executor_test.go:268: user_id[0] (model=claude-3-5-sonnet): user_af84724255e2ff917852c4182e4bf2f313d4e385c2a5b2c4cff4d28fbc02a23a_account__session_056fad8a-2f8a-4377-8e9a-eb8199fe3962
-    claude_executor_test.go:269: user_id[1] (model=claude-3-5-haiku): user_af84724255e2ff917852c4182e4bf2f313d4e385c2a5b2c4cff4d28fbc02a23a_account__session_056fad8a-2f8a-4377-8e9a-eb8199fe3962
-    claude_executor_test.go:276: ✓ End-to-end test passed: Same user_id (user_af84724255e2ff917852c4182e4bf2f313d4e385c2a5b2c4cff4d28fbc02a23a_account__session_056fad8a-2f8a-4377-8e9a-eb8199fe3962) was used for both models
---- PASS: TestClaudeExecutor_ReusesUserIDAcrossModelsWhenCacheEnabled (0.01s)
+    claude_executor_test.go:222: HTTP Server received request: model=claude-3-5-haiku, user_id=user_54f4dc92d5ca384f1e3489ad5d7d0d2368ecc31cec644909d1540b5e2ecc68e7_account__session_a267c049-cc9e-48c7-96d6-af4700561ec8, url=/v1/messages?beta=true
+    claude_executor_test.go:268: user_id[0] (model=claude-3-5-sonnet): user_54f4dc92d5ca384f1e3489ad5d7d0d2368ecc31cec644909d1540b5e2ecc68e7_account__session_a267c049-cc9e-48c7-96d6-af4700561ec8
+    claude_executor_test.go:269: user_id[1] (model=claude-3-5-haiku): user_54f4dc92d5ca384f1e3489ad5d7d0d2368ecc31cec644909d1540b5e2ecc68e7_account__session_a267c049-cc9e-48c7-96d6-af4700561ec8
+    claude_executor_test.go:276: ✓ End-to-end test passed: Same user_id (user_54f4dc92d5ca384f1e3489ad5d7d0d2368ecc31cec644909d1540b5e2ecc68e7_account__session_a267c049-cc9e-48c7-96d6-af4700561ec8) was used for both models
+--- PASS: TestClaudeExecutor_ReusesUserIDAcrossModelsWhenCacheEnabled (0.00s)
 === RUN   TestClaudeExecutor_GeneratesNewUserIDByDefault
 --- PASS: TestClaudeExecutor_GeneratesNewUserIDByDefault (0.00s)
 === RUN   TestStripClaudeToolPrefixFromResponse_NestedToolReference
@@ -155,7 +155,7 @@
 === RUN   TestNormalizeKimiToolMessageLinks_InferSinglePendingID
 --- PASS: TestNormalizeKimiToolMessageLinks_InferSinglePendingID (0.00s)
 === RUN   TestNormalizeKimiToolMessageLinks_AmbiguousMissingIDIsNotInferred
-time="2026-02-28T18:17:24+03:00" level=warning msg="kimi executor: tool messages missing tool_call_id with ambiguous candidates" ambiguous_tool_messages=1 pending_tool_calls=2
+time="2026-02-28T18:18:46+03:00" level=warning msg="kimi executor: tool messages missing tool_call_id with ambiguous candidates" ambiguous_tool_messages=1 pending_tool_calls=2
 --- PASS: TestNormalizeKimiToolMessageLinks_AmbiguousMissingIDIsNotInferred (0.00s)
 === RUN   TestNormalizeKimiToolMessageLinks_PreservesExistingToolCallID
 --- PASS: TestNormalizeKimiToolMessageLinks_PreservesExistingToolCallID (0.00s)
@@ -278,52 +278,52 @@ time="2026-02-28T18:17:24+03:00" level=warning msg="kimi executor: tool messages
 === CONT  TestDetectVisionContent_NoMessages
 --- PASS: TestDetectVisionContent_NoMessages (0.00s)
 === CONT  TestDetectVisionContent_NoVision
---- PASS: TestDetectVisionContent_NoVision (0.00s)
-=== CONT  TestDetectVisionContent_WithImageType
---- PASS: TestDetectVisionContent_WithImageType (0.00s)
-=== CONT  TestDetectVisionContent_WithImageURL
---- PASS: TestDetectVisionContent_WithImageURL (0.00s)
-=== CONT  TestApplyHeaders_GitHubAPIVersion
---- PASS: TestApplyHeaders_GitHubAPIVersion (0.00s)
-=== CONT  TestApplyHeaders_XInitiator_AgentWithToolRole
---- PASS: TestApplyHeaders_XInitiator_AgentWithToolRole (0.00s)
-=== CONT  TestApplyHeaders_XInitiator_AgentWithAssistantAndUserToolResult
---- PASS: TestApplyHeaders_XInitiator_AgentWithAssistantAndUserToolResult (0.00s)
-=== CONT  TestApplyHeaders_XInitiator_UserOnly
---- PASS: TestApplyHeaders_XInitiator_UserOnly (0.00s)
-=== CONT  TestTranslateGitHubCopilotResponsesStreamToClaude_TextLifecycle
---- PASS: TestTranslateGitHubCopilotResponsesStreamToClaude_TextLifecycle (0.00s)
-=== CONT  TestTranslateGitHubCopilotResponsesNonStreamToClaude_ToolUseMapping
---- PASS: TestTranslateGitHubCopilotResponsesNonStreamToClaude_ToolUseMapping (0.00s)
-=== CONT  TestTranslateGitHubCopilotResponsesNonStreamToClaude_TextMapping
---- PASS: TestTranslateGitHubCopilotResponsesNonStreamToClaude_TextMapping (0.00s)
-=== CONT  TestNormalizeGitHubCopilotResponsesTools_InvalidToolChoiceDowngradeToAuto
---- PASS: TestNormalizeGitHubCopilotResponsesTools_InvalidToolChoiceDowngradeToAuto (0.00s)
 === CONT  TestNormalizeGitHubCopilotResponsesTools_FlattenToolChoiceFunctionObject
---- PASS: TestNormalizeGitHubCopilotResponsesTools_FlattenToolChoiceFunctionObject (0.00s)
-=== CONT  TestNormalizeGitHubCopilotResponsesTools_ClaudeFormatTools
---- PASS: TestNormalizeGitHubCopilotResponsesTools_ClaudeFormatTools (0.00s)
-=== CONT  TestNormalizeGitHubCopilotResponsesTools_FlattenFunctionTools
---- PASS: TestNormalizeGitHubCopilotResponsesTools_FlattenFunctionTools (0.00s)
 === CONT  TestNormalizeGitHubCopilotResponsesInput_NonStringInputStringified
+--- PASS: TestDetectVisionContent_NoVision (0.00s)
+=== CONT  TestIsCopilotClaudeModel
+--- PASS: TestNormalizeGitHubCopilotResponsesTools_FlattenToolChoiceFunctionObject (0.00s)
+=== CONT  TestIsGPT5Model
+=== CONT  TestDetectVisionContent_WithImageURL
 --- PASS: TestNormalizeGitHubCopilotResponsesInput_NonStringInputStringified (0.00s)
-=== CONT  TestNormalizeGitHubCopilotResponsesInput_MissingInputExtractedFromSystemAndMessages
---- PASS: TestNormalizeGitHubCopilotResponsesInput_MissingInputExtractedFromSystemAndMessages (0.00s)
-=== CONT  TestNormalizeGitHubCopilotChatTools_InvalidToolChoiceDowngradeToAuto
---- PASS: TestNormalizeGitHubCopilotChatTools_InvalidToolChoiceDowngradeToAuto (0.00s)
+--- PASS: TestDetectVisionContent_WithImageURL (0.00s)
+--- PASS: TestIsCopilotClaudeModel (0.00s)
+=== CONT  TestNormalizeGitHubCopilotResponsesTools_ClaudeFormatTools
+--- PASS: TestIsGPT5Model (0.00s)
 === CONT  TestNormalizeGitHubCopilotChatTools_KeepFunctionOnly
 --- PASS: TestNormalizeGitHubCopilotChatTools_KeepFunctionOnly (0.00s)
-=== CONT  TestIsCopilotClaudeModel
---- PASS: TestIsCopilotClaudeModel (0.00s)
-=== CONT  TestIsGPT5Model
---- PASS: TestIsGPT5Model (0.00s)
-=== CONT  TestGitHubCopilotNormalizeModel_StripsSuffix/numeric_suffix_stripped
-=== CONT  TestGitHubCopilotNormalizeModel_StripsSuffix/different_suffix_stripped
 === CONT  TestGitHubCopilotNormalizeModel_StripsSuffix/no_suffix_unchanged
+=== CONT  TestGitHubCopilotNormalizeModel_StripsSuffix/numeric_suffix_stripped
+--- PASS: TestNormalizeGitHubCopilotResponsesTools_ClaudeFormatTools (0.00s)
+=== CONT  TestApplyHeaders_GitHubAPIVersion
+=== CONT  TestApplyHeaders_XInitiator_AgentWithToolRole
+--- PASS: TestApplyHeaders_GitHubAPIVersion (0.00s)
+=== CONT  TestApplyHeaders_XInitiator_AgentWithAssistantAndUserToolResult
+--- PASS: TestApplyHeaders_XInitiator_AgentWithToolRole (0.00s)
+=== CONT  TestApplyHeaders_XInitiator_UserOnly
+--- PASS: TestApplyHeaders_XInitiator_AgentWithAssistantAndUserToolResult (0.00s)
+=== CONT  TestNormalizeGitHubCopilotResponsesTools_InvalidToolChoiceDowngradeToAuto
+--- PASS: TestApplyHeaders_XInitiator_UserOnly (0.00s)
+=== CONT  TestTranslateGitHubCopilotResponsesNonStreamToClaude_TextMapping
+=== CONT  TestNormalizeGitHubCopilotResponsesTools_FlattenFunctionTools
+=== CONT  TestDetectVisionContent_WithImageType
+--- PASS: TestNormalizeGitHubCopilotResponsesTools_InvalidToolChoiceDowngradeToAuto (0.00s)
+=== CONT  TestNormalizeGitHubCopilotChatTools_InvalidToolChoiceDowngradeToAuto
+=== CONT  TestTranslateGitHubCopilotResponsesStreamToClaude_TextLifecycle
+=== CONT  TestGitHubCopilotNormalizeModel_StripsSuffix/different_suffix_stripped
+=== CONT  TestNormalizeGitHubCopilotResponsesInput_MissingInputExtractedFromSystemAndMessages
+=== CONT  TestTranslateGitHubCopilotResponsesNonStreamToClaude_ToolUseMapping
+--- PASS: TestNormalizeGitHubCopilotResponsesTools_FlattenFunctionTools (0.00s)
+--- PASS: TestTranslateGitHubCopilotResponsesNonStreamToClaude_TextMapping (0.00s)
+--- PASS: TestDetectVisionContent_WithImageType (0.00s)
+--- PASS: TestNormalizeGitHubCopilotChatTools_InvalidToolChoiceDowngradeToAuto (0.00s)
+--- PASS: TestTranslateGitHubCopilotResponsesStreamToClaude_TextLifecycle (0.00s)
 --- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix (0.00s)
     --- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix/suffix_stripped (0.00s)
+    --- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix/no_suffix_unchanged (0.00s)
     --- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix/numeric_suffix_stripped (0.00s)
     --- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix/different_suffix_stripped (0.00s)
-    --- PASS: TestGitHubCopilotNormalizeModel_StripsSuffix/no_suffix_unchanged (0.00s)
+--- PASS: TestNormalizeGitHubCopilotResponsesInput_MissingInputExtractedFromSystemAndMessages (0.00s)
+--- PASS: TestTranslateGitHubCopilotResponsesNonStreamToClaude_ToolUseMapping (0.00s)
 PASS
-ok  	github.com/router-for-me/CLIProxyAPI/v6/internal/runtime/executor	0.339s
+ok  	github.com/router-for-me/CLIProxyAPI/v6/internal/runtime/executor	0.308s

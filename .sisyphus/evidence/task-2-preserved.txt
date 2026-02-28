@@ -1,0 +1,8 @@
+		body = filterResponsesReasoningItems(body)
+		data = stabilizeResponsesNonStreamIDs(data)
+		body = filterResponsesReasoningItems(body)
+// stabilizeResponsesStreamIDs replaces the rotating encrypted IDs in Copilot's
+// stabilizeResponsesNonStreamIDs replaces encrypted IDs in a non-streaming
+func stabilizeResponsesNonStreamIDs(data []byte) []byte {
+// filterResponsesReasoningItems removes reasoning items from the input array.
+func filterResponsesReasoningItems(body []byte) []byte {
