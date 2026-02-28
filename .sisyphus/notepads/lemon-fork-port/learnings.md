@@ -18,3 +18,21 @@ Successfully applied patches 001, 002, and 007 to internal/runtime/executor/gith
 - Added assistant prefill handling in `antigravity_claude_request.go` and `antigravity_gemini_request.go`
 - Removed `enableThoughtTranslate` from `antigravity_claude_request.go`
 - Added thinking signature caching to non-streaming path in `antigravity_claude_response.go`
+
+---
+## Task 4 — antigravity_claude_request.go (2026-02-28)
+
+### enableThoughtTranslate
+- Was already removed by a prior agent. Our file matched lemon's final state exactly (diff was empty).
+- The flag controlled whether thought translation proceeded; its removal means unsigned thinking blocks are silently dropped via `continue` and thought translation always proceeds for subsequent messages.
+
+### Assistant Prefill Fix (patch 004)
+- Inserted after the `if messagesResult.IsArray()` block closes (before `// tools` section).
+- Logic: detect trailing "model" message with no functionCall parts → extract text → remove it → inject `{"role":"user","parts":[{"text":"Continue from: <prefill>"}]}`.
+- `hasContents` is updated after trimming to correctly reflect remaining array length.
+- Note: lemon's reference file did NOT have this patch applied either — patch 004 needed manual application to both our fork and lemon's file.
+
+### Verification
+- `grep -c enableThoughtTranslate` → 0 ✅
+- `grep -c 'Continue from:'` → 1 ✅
+- `go build ./...` → clean ✅
