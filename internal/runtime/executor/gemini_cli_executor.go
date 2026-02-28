@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/auth/antigravity"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/misc"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/runtime/geminicli"
@@ -852,6 +853,94 @@ func newGeminiStatusErr(statusCode int, body []byte) statusErr {
 	}
 	return err
 }
+func parseDurationString(s string) (time.Duration, error) {
+	if d, err := time.ParseDuration(s); err == nil {
+		return d, nil
+	}
+
+	re := regexp.MustCompile(`(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?`)
+	matches := re.FindStringSubmatch(s)
+	if len(matches) > 0 && matches[0] != "" {
+		var d time.Duration
+		if matches[1] != "" {
+			h, _ := strconv.Atoi(matches[1])
+			d += time.Duration(h) * time.Hour
+		}
+		if matches[2] != "" {
+			m, _ := strconv.Atoi(matches[2])
+			d += time.Duration(m) * time.Minute
+		}
+		if matches[3] != "" {
+			s, _ := strconv.Atoi(matches[3])
+			d += time.Duration(s) * time.Second
+		}
+		return d, nil
+	}
+
+	return 0, fmt.Errorf("invalid duration format")
+}
+
+func parseRetryAfterHeader(header string) *time.Duration {
+	if header == "" {
+		return nil
+	}
+
+	if seconds, err := strconv.Atoi(header); err == nil {
+		d := time.Duration(seconds) * time.Second
+		return &d
+	}
+
+	// Maybe date format? Not required yet but let's try HTTP date just in case
+	if t, err := http.ParseTime(header); err == nil {
+		d := time.Until(t)
+		if d < 0 {
+			d = 0
+		}
+		return &d
+	}
+
+	return nil
+}
+
+// parseRateLimitReason extracts the rate limit reason from a Google API error response body.
+// It first tries to parse the structured JSON reason field, then falls back to text matching.
+func parseRateLimitReason(body []byte) antigravity.RateLimitReason {
+	details := gjson.GetBytes(body, "error.details")
+	if details.Exists() && details.IsArray() {
+		for _, detail := range details.Array() {
+			typeVal := detail.Get("@type").String()
+			if typeVal == "type.googleapis.com/google.rpc.ErrorInfo" {
+				reason := detail.Get("reason").String()
+				switch reason {
+				case "QUOTA_EXCEEDED", "QUOTA_EXHAUSTED":
+					return antigravity.QuotaExhausted
+				case "RATE_LIMIT_EXCEEDED", "RESOURCE_EXHAUSTED":
+					return antigravity.RateLimitExceeded
+				case "MODEL_CAPACITY_EXHAUSTED", "MODEL_OVERLOADED":
+					return antigravity.ModelCapacityExhausted
+				}
+			}
+		}
+	}
+
+	// Text fallback on full body string
+	bodyStr := string(body)
+	lowerBody := strings.ToLower(bodyStr)
+
+	if strings.Contains(lowerBody, "per minute") || strings.Contains(lowerBody, "per second") {
+		return antigravity.RateLimitExceeded
+	}
+
+	if strings.Contains(lowerBody, "model") && (strings.Contains(lowerBody, "capacity") || strings.Contains(lowerBody, "overloaded")) {
+		return antigravity.ModelCapacityExhausted
+	}
+
+	if strings.Contains(lowerBody, "exhausted") || strings.Contains(lowerBody, "quota") {
+		return antigravity.QuotaExhausted
+	}
+
+	return antigravity.Unknown
+}
 
 // parseRetryDelay extracts the retry delay from a Google API 429 error response.
 // The error response contains a RetryInfo.retryDelay field in the format "0.847655010s".
@@ -871,6 +960,9 @@ func parseRetryDelay(errorBody []byte) (*time.Duration, error) {
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse duration")
 					}
+					if duration < 2*time.Second {
+						duration = 2 * time.Second
+					}
 					return &duration, nil
 				}
 			}
@@ -884,6 +976,9 @@ func parseRetryDelay(errorBody []byte) (*time.Duration, error) {
 				if quotaResetDelay != "" {
 					duration, err := time.ParseDuration(quotaResetDelay)
 					if err == nil {
+						if duration < 2*time.Second {
+							duration = 2 * time.Second
+						}
 						return &duration, nil
 					}
 				}
@@ -899,11 +994,54 @@ func parseRetryDelay(errorBody []byte) (*time.Duration, error) {
 			seconds, err := strconv.Atoi(matches[1])
 			if err == nil {
 				val := time.Duration(seconds) * time.Second
+				if val < 2*time.Second {
+					val = 2 * time.Second
+				}
 				return &val, nil
 			}
 		}
-	}
 
+		reMinSec := regexp.MustCompile(`(?i)try again in (\d+)m\s*(\d+)s`)
+		if matches := reMinSec.FindStringSubmatch(message); len(matches) > 2 {
+			mins, _ := strconv.Atoi(matches[1])
+			secs, _ := strconv.Atoi(matches[2])
+			val := time.Duration(mins*60+secs) * time.Second
+			if val < 2*time.Second {
+				val = 2 * time.Second
+			}
+			return &val, nil
+		}
+
+		reBackoff := regexp.MustCompile(`(?i)backoff for (\d+)s`)
+		if matches := reBackoff.FindStringSubmatch(message); len(matches) > 1 {
+			seconds, _ := strconv.Atoi(matches[1])
+			val := time.Duration(seconds) * time.Second
+			if val < 2*time.Second {
+				val = 2 * time.Second
+			}
+			return &val, nil
+		}
+
+		reQuotaReset := regexp.MustCompile(`(?i)quota will reset in (\d+) second`)
+		if matches := reQuotaReset.FindStringSubmatch(message); len(matches) > 1 {
+			seconds, _ := strconv.Atoi(matches[1])
+			val := time.Duration(seconds) * time.Second
+			if val < 2*time.Second {
+				val = 2 * time.Second
+			}
+			return &val, nil
+		}
+
+		reRetryAfter := regexp.MustCompile(`(?i)retry after (\d+) second`)
+		if matches := reRetryAfter.FindStringSubmatch(message); len(matches) > 1 {
+			seconds, _ := strconv.Atoi(matches[1])
+			val := time.Duration(seconds) * time.Second
+			if val < 2*time.Second {
+				val = 2 * time.Second
+			}
+			return &val, nil
+		}
+	}
 
 	return nil, fmt.Errorf("no RetryInfo found")
 }
