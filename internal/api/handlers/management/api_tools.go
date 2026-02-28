@@ -21,6 +21,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/runtime/geminicli"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/auth"
+	claudeauth "github.com/router-for-me/CLIProxyAPI/v6/internal/auth/claude"
 )
 
 const defaultAPICallTimeout = 60 * time.Second
@@ -328,6 +329,11 @@ func (h *Handler) resolveTokenForAuth(ctx context.Context, auth *coreauth.Auth) 
 		return token, errToken
 	}
 
+	if provider == "claude" {
+		token, errToken := h.refreshClaudeOAuthAccessToken(ctx, auth)
+		return token, errToken
+	}
+	
 	return tokenValueForAuth(auth), nil
 }
 
@@ -500,6 +506,65 @@ func (h *Handler) refreshAntigravityOAuthAccessToken(ctx context.Context, auth *
 	return strings.TrimSpace(tokenResp.AccessToken), nil
 }
 
+func (h *Handler) refreshClaudeOAuthAccessToken(ctx context.Context, auth *coreauth.Auth) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if auth == nil {
+		return "", nil
+	}
+
+	metadata := auth.Metadata
+	if len(metadata) == 0 {
+		return "", fmt.Errorf("claude oauth metadata missing")
+	}
+
+	current := strings.TrimSpace(tokenValueFromMetadata(metadata))
+	if current != "" && !claudeTokenNeedsRefresh(metadata) {
+		return current, nil
+	}
+
+	refreshToken := stringValue(metadata, "refresh_token")
+	if refreshToken == "" {
+		return tokenValueForAuth(auth), nil
+	}
+
+	// 1. Call Claude OAuth token refresh.
+	svc := claudeauth.NewClaudeAuth(h.cfg)
+	tokenData, errRefresh := svc.RefreshTokens(ctx, refreshToken)
+	if errRefresh != nil {
+		return "", errRefresh
+	}
+
+	if strings.TrimSpace(tokenData.AccessToken) == "" {
+		return "", fmt.Errorf("claude oauth token refresh returned empty access_token")
+	}
+
+	// 2. Update auth.Metadata with new token values.
+	if auth.Metadata == nil {
+		auth.Metadata = make(map[string]any)
+	}
+	now := time.Now()
+	auth.Metadata["access_token"] = strings.TrimSpace(tokenData.AccessToken)
+	if strings.TrimSpace(tokenData.RefreshToken) != "" {
+		auth.Metadata["refresh_token"] = strings.TrimSpace(tokenData.RefreshToken)
+	}
+	if strings.TrimSpace(tokenData.Email) != "" {
+		auth.Metadata["email"] = strings.TrimSpace(tokenData.Email)
+	}
+	auth.Metadata["expired"] = tokenData.Expire
+	auth.Metadata["type"] = "claude"
+
+	// 3. Persist to disk.
+	if h != nil && h.authManager != nil {
+		auth.LastRefreshedAt = now
+		auth.UpdatedAt = now
+		_, _ = h.authManager.Update(ctx, auth)
+	}
+
+	return strings.TrimSpace(tokenData.AccessToken), nil
+}
+
 func antigravityTokenNeedsRefresh(metadata map[string]any) bool {
 	// Refresh a bit early to avoid requests racing token expiry.
 	const skew = 30 * time.Second
@@ -517,6 +582,21 @@ func antigravityTokenNeedsRefresh(metadata map[string]any) bool {
 	if expiresIn > 0 && timestampMs > 0 {
 		exp := time.UnixMilli(timestampMs).Add(time.Duration(expiresIn) * time.Second)
 		return !exp.After(time.Now().Add(skew))
+	}
+	return true
+}
+
+func claudeTokenNeedsRefresh(metadata map[string]any) bool {
+	// Refresh a bit early to avoid requests racing token expiry.
+	const skew = 30 * time.Second
+
+	if metadata == nil {
+		return true
+	}
+	if expStr, ok := metadata["expired"].(string); ok {
+		if ts, errParse := time.Parse(time.RFC3339, strings.TrimSpace(expStr)); errParse == nil {
+			return !ts.After(time.Now().Add(skew))
+		}
 	}
 	return true
 }
