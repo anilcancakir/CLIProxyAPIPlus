@@ -369,6 +369,185 @@ func TestFileSynthesizer_Synthesize_PriorityParsing(t *testing.T) {
 	}
 }
 
+func TestFileSynthesizer_Synthesize_PriorityFromJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	authData := map[string]any{
+		"type":     "claude",
+		"priority": 5,
+	}
+	data, _ := json.Marshal(authData)
+	_ = os.WriteFile(filepath.Join(tempDir, "auth.json"), data, 0644)
+
+	synth := NewFileSynthesizer()
+	ctx := &SynthesisContext{
+		Config:      &config.Config{}, // no config priority
+		AuthDir:     tempDir,
+		Now:         time.Now(),
+		IDGenerator: NewStableIDGenerator(),
+	}
+
+	auths, err := synth.Synthesize(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(auths) != 1 {
+		t.Fatalf("expected 1 auth, got %d", len(auths))
+	}
+	if got := auths[0].Attributes["priority"]; got != "5" {
+		t.Errorf("expected priority '5', got %q", got)
+	}
+}
+
+func TestFileSynthesizer_Synthesize_PriorityFromConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	authData := map[string]any{
+		"type": "claude",
+		// no priority in JSON
+	}
+	data, _ := json.Marshal(authData)
+	_ = os.WriteFile(filepath.Join(tempDir, "auth.json"), data, 0644)
+
+	synth := NewFileSynthesizer()
+	ctx := &SynthesisContext{
+		Config: &config.Config{
+			OAuthProviderPriority: map[string]int{"claude": 10},
+		},
+		AuthDir:     tempDir,
+		Now:         time.Now(),
+		IDGenerator: NewStableIDGenerator(),
+	}
+
+	auths, err := synth.Synthesize(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(auths) != 1 {
+		t.Fatalf("expected 1 auth, got %d", len(auths))
+	}
+	if got := auths[0].Attributes["priority"]; got != "10" {
+		t.Errorf("expected priority '10', got %q", got)
+	}
+}
+
+func TestFileSynthesizer_Synthesize_PriorityJSONOverridesConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	authData := map[string]any{
+		"type":     "claude",
+		"priority": 5,
+	}
+	data, _ := json.Marshal(authData)
+	_ = os.WriteFile(filepath.Join(tempDir, "auth.json"), data, 0644)
+
+	synth := NewFileSynthesizer()
+	ctx := &SynthesisContext{
+		Config: &config.Config{
+			OAuthProviderPriority: map[string]int{"claude": 10},
+		},
+		AuthDir:     tempDir,
+		Now:         time.Now(),
+		IDGenerator: NewStableIDGenerator(),
+	}
+
+	auths, err := synth.Synthesize(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(auths) != 1 {
+		t.Fatalf("expected 1 auth, got %d", len(auths))
+	}
+	if got := auths[0].Attributes["priority"]; got != "5" {
+		t.Errorf("expected priority '5', got %q", got)
+	}
+}
+
+func TestFileSynthesizer_Synthesize_PriorityZeroJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	authData := map[string]any{
+		"type":     "claude",
+		"priority": 0,
+	}
+	data, _ := json.Marshal(authData)
+	_ = os.WriteFile(filepath.Join(tempDir, "auth.json"), data, 0644)
+
+	synth := NewFileSynthesizer()
+	ctx := &SynthesisContext{
+		Config: &config.Config{
+			OAuthProviderPriority: map[string]int{"claude": 10},
+		},
+		AuthDir:     tempDir,
+		Now:         time.Now(),
+		IDGenerator: NewStableIDGenerator(),
+	}
+
+	auths, err := synth.Synthesize(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(auths) != 1 {
+		t.Fatalf("expected 1 auth, got %d", len(auths))
+	}
+	if got := auths[0].Attributes["priority"]; got != "0" {
+		t.Errorf("expected priority '0', got %q", got)
+	}
+}
+
+func TestFileSynthesizer_Synthesize_PriorityNeitherSet(t *testing.T) {
+	tempDir := t.TempDir()
+	authData := map[string]any{
+		"type": "claude",
+	}
+	data, _ := json.Marshal(authData)
+	_ = os.WriteFile(filepath.Join(tempDir, "auth.json"), data, 0644)
+
+	synth := NewFileSynthesizer()
+	ctx := &SynthesisContext{
+		Config:      &config.Config{}, // no config priority
+		AuthDir:     tempDir,
+		Now:         time.Now(),
+		IDGenerator: NewStableIDGenerator(),
+	}
+
+	auths, err := synth.Synthesize(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(auths) != 1 {
+		t.Fatalf("expected 1 auth, got %d", len(auths))
+	}
+	if got, exists := auths[0].Attributes["priority"]; exists {
+		t.Errorf("expected priority to be absent, got %q", got)
+	}
+}
+
+func TestFileSynthesizer_Synthesize_PriorityNegative(t *testing.T) {
+	tempDir := t.TempDir()
+	authData := map[string]any{
+		"type":     "claude",
+		"priority": -3,
+	}
+	data, _ := json.Marshal(authData)
+	_ = os.WriteFile(filepath.Join(tempDir, "auth.json"), data, 0644)
+
+	synth := NewFileSynthesizer()
+	ctx := &SynthesisContext{
+		Config:      &config.Config{},
+		AuthDir:     tempDir,
+		Now:         time.Now(),
+		IDGenerator: NewStableIDGenerator(),
+	}
+
+	auths, err := synth.Synthesize(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(auths) != 1 {
+		t.Fatalf("expected 1 auth, got %d", len(auths))
+	}
+	if got := auths[0].Attributes["priority"]; got != "-3" {
+		t.Errorf("expected priority '-3', got %q", got)
+	}
+}
+
 func TestFileSynthesizer_Synthesize_OAuthExcludedModelsMerged(t *testing.T) {
 	tempDir := t.TempDir()
 	authData := map[string]any{

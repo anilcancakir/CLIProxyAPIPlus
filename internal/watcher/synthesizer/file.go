@@ -123,6 +123,10 @@ func (s *FileSynthesizer) Synthesize(ctx *SynthesisContext) ([]*coreauth.Auth, e
 					a.Attributes["priority"] = priority
 				}
 			}
+		} else if cfg != nil && cfg.OAuthProviderPriority != nil {
+			if configPriority, exists := cfg.OAuthProviderPriority[provider]; exists {
+				a.Attributes["priority"] = strconv.Itoa(configPriority)
+			}
 		}
 		ApplyAuthExcludedModelsMeta(a, cfg, perAccountExcluded, "oauth")
 		if provider == "gemini-cli" {
