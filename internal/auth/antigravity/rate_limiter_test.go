@@ -96,7 +96,7 @@ func TestQuotaExhaustedBackoff(t *testing.T) {
 	rl.CleanupExpired() // clear for next test
 	// To simulate second failure, call again without cleanup
 	rl2 := NewAntigravityRateLimiterWithSteps(defaultBackoffSteps)
-	rl2.ParseFromError("acc1", 429, nil, []byte("{}"), &model) // failure 1
+	rl2.ParseFromError("acc1", 429, nil, []byte("{}"), &model)          // failure 1
 	info2 := rl2.ParseFromError("acc1", 429, nil, []byte("{}"), &model) // failure 2
 	assert.InDelta(t, 300.0, float64(info2.RetryAfterSec), 2.0)
 }
