@@ -3,11 +3,16 @@ package executor
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	claudeauth "github.com/router-for-me/CLIProxyAPI/v6/internal/auth/claude"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/auth"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/executor"
@@ -346,5 +351,264 @@ func TestApplyClaudeToolPrefix_SkipsBuiltinToolReference(t *testing.T) {
 	got := gjson.GetBytes(out, "messages.0.content.0.content.0.tool_name").String()
 	if got != "web_search" {
 		t.Fatalf("built-in tool_reference should not be prefixed, got %q", got)
+	}
+}
+
+func seedClaudeQuotaCacheForTest(
+	t *testing.T,
+	checker *claudeauth.ClaudeQuotaChecker,
+	accountID string,
+	utilization float64,
+	resetsAt time.Time,
+) {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(
+			[]byte(
+				fmt.Sprintf(
+					`{"five_hour":{"utilization":%.2f,"resets_at":%q},"seven_day":{"utilization":0,"resets_at":%q}}`,
+					utilization,
+					resetsAt.UTC().Format(time.RFC3339),
+					resetsAt.UTC().Format(time.RFC3339),
+				),
+			),
+		)
+	}))
+	defer srv.Close()
+
+	previousUsageURL := claudeauth.ClaudeUsageURL
+	claudeauth.ClaudeUsageURL = srv.URL
+	t.Cleanup(func() {
+		claudeauth.ClaudeUsageURL = previousUsageURL
+	})
+
+	if _, err := checker.FetchQuota(context.Background(), "test-token", accountID); err != nil {
+		t.Fatalf("FetchQuota() error: %v", err)
+	}
+}
+
+func TestCheckQuotaThreshold_ReturnsThresholdErrorWhenUtilizationExceedsThreshold(t *testing.T) {
+	cfg := &config.Config{
+		QuotaExceeded: config.QuotaExceeded{
+			ClaudeQuotaThresholds: map[string]float64{
+				"claude-opus-4-5-20251101": 80,
+			},
+		},
+	}
+	checker := claudeauth.NewClaudeQuotaChecker(&http.Client{})
+	resetsAt := time.Now().Add(15 * time.Minute)
+	seedClaudeQuotaCacheForTest(t, checker, "acct-threshold-high", 85, resetsAt)
+
+	err := checkQuotaThreshold(cfg, checker, "acct-threshold-high", "claude-opus-4-5-20251101")
+	if err == nil {
+		t.Fatal("expected quota threshold error, got nil")
+	}
+
+	var thresholdErr *quotaThresholdError
+	if !errors.As(err, &thresholdErr) {
+		t.Fatalf("expected *quotaThresholdError, got %T", err)
+	}
+	if got := thresholdErr.StatusCode(); got != http.StatusTooManyRequests {
+		t.Fatalf("StatusCode() = %d, want %d", got, http.StatusTooManyRequests)
+	}
+}
+
+func TestCheckQuotaThreshold_ReturnsNilWhenUtilizationBelowThreshold(t *testing.T) {
+	cfg := &config.Config{
+		QuotaExceeded: config.QuotaExceeded{
+			ClaudeQuotaThresholds: map[string]float64{
+				"claude-opus-4-5-20251101": 80,
+			},
+		},
+	}
+	checker := claudeauth.NewClaudeQuotaChecker(&http.Client{})
+	seedClaudeQuotaCacheForTest(
+		t,
+		checker,
+		"acct-threshold-low",
+		50,
+		time.Now().Add(15*time.Minute),
+	)
+
+	err := checkQuotaThreshold(cfg, checker, "acct-threshold-low", "claude-opus-4-5-20251101")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestCheckQuotaThreshold_ReturnsNilWhenCachedQuotaMissing(t *testing.T) {
+	cfg := &config.Config{
+		QuotaExceeded: config.QuotaExceeded{
+			ClaudeQuotaThresholds: map[string]float64{
+				"claude-opus-4-5-20251101": 80,
+			},
+		},
+	}
+	checker := claudeauth.NewClaudeQuotaChecker(&http.Client{})
+
+	err := checkQuotaThreshold(cfg, checker, "acct-threshold-cold", "claude-opus-4-5-20251101")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestCheckQuotaThreshold_ReturnsNilWhenNoThresholdsConfigured(t *testing.T) {
+	cfg := &config.Config{}
+	checker := claudeauth.NewClaudeQuotaChecker(&http.Client{})
+	seedClaudeQuotaCacheForTest(
+		t,
+		checker,
+		"acct-threshold-not-configured",
+		99,
+		time.Now().Add(15*time.Minute),
+	)
+
+	err := checkQuotaThreshold(cfg, checker, "acct-threshold-not-configured", "claude-opus-4-5-20251101")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestCheckQuotaThreshold_AppliesWildcardThreshold(t *testing.T) {
+	cfg := &config.Config{
+		QuotaExceeded: config.QuotaExceeded{
+			ClaudeQuotaThresholds: map[string]float64{
+				"claude-opus-*": 60,
+			},
+		},
+	}
+	checker := claudeauth.NewClaudeQuotaChecker(&http.Client{})
+	seedClaudeQuotaCacheForTest(
+		t,
+		checker,
+		"acct-threshold-wildcard",
+		75,
+		time.Now().Add(15*time.Minute),
+	)
+
+	err := checkQuotaThreshold(cfg, checker, "acct-threshold-wildcard", "claude-opus-4-5-20251101")
+	if err == nil {
+		t.Fatal("expected quota threshold error for wildcard model, got nil")
+	}
+
+	var thresholdErr *quotaThresholdError
+	if !errors.As(err, &thresholdErr) {
+		t.Fatalf("expected *quotaThresholdError, got %T", err)
+	}
+	if thresholdErr.threshold != 60 {
+		t.Fatalf("threshold = %.1f, want 60.0", thresholdErr.threshold)
+	}
+}
+
+func TestClaudeExecutor_Execute_FailsFastWhenQuotaThresholdExceeded(t *testing.T) {
+	var wasCalled atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		wasCalled.Store(true)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(
+			[]byte(`{"id":"msg_1","type":"message","model":"claude-opus-4-5-20251101","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}`),
+		)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		QuotaExceeded: config.QuotaExceeded{
+			ClaudeQuotaThresholds: map[string]float64{
+				"claude-opus-*": 80,
+			},
+		},
+	}
+	executor := NewClaudeExecutor(cfg)
+	auth := &cliproxyauth.Auth{
+		ID: "acct-execute-quota-threshold",
+		Attributes: map[string]string{
+			"api_key":  "key-123",
+			"base_url": server.URL,
+		},
+	}
+
+	checker := getClaudeQuotaChecker(cfg)
+	seedClaudeQuotaCacheForTest(
+		t,
+		checker,
+		auth.ID,
+		95,
+		time.Now().Add(15*time.Minute),
+	)
+
+	_, err := executor.Execute(
+		context.Background(),
+		auth,
+		cliproxyexecutor.Request{
+			Model:   "claude-opus-4-5-20251101",
+			Payload: []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"hi"}]}]}`),
+		},
+		cliproxyexecutor.Options{
+			SourceFormat: sdktranslator.FromString("claude"),
+		},
+	)
+	if err == nil {
+		t.Fatal("expected quota threshold error, got nil")
+	}
+	if wasCalled.Load() {
+		t.Fatal("expected upstream API not to be called when threshold is exceeded")
+	}
+}
+
+func TestClaudeExecutor_ExecuteStream_FailsFastWhenQuotaThresholdExceeded(t *testing.T) {
+	var wasCalled atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		wasCalled.Store(true)
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		QuotaExceeded: config.QuotaExceeded{
+			ClaudeQuotaThresholds: map[string]float64{
+				"claude-opus-*": 80,
+			},
+		},
+	}
+	executor := NewClaudeExecutor(cfg)
+	auth := &cliproxyauth.Auth{
+		ID: "acct-execute-stream-quota-threshold",
+		Attributes: map[string]string{
+			"api_key":  "key-123",
+			"base_url": server.URL,
+		},
+	}
+
+	checker := getClaudeQuotaChecker(cfg)
+	seedClaudeQuotaCacheForTest(
+		t,
+		checker,
+		auth.ID,
+		95,
+		time.Now().Add(15*time.Minute),
+	)
+
+	streamResult, err := executor.ExecuteStream(
+		context.Background(),
+		auth,
+		cliproxyexecutor.Request{
+			Model:   "claude-opus-4-5-20251101",
+			Payload: []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"hi"}]}]}`),
+		},
+		cliproxyexecutor.Options{
+			SourceFormat: sdktranslator.FromString("claude"),
+		},
+	)
+	if err == nil {
+		t.Fatal("expected quota threshold error, got nil")
+	}
+	if streamResult != nil {
+		t.Fatal("expected nil stream result when threshold is exceeded")
+	}
+	if wasCalled.Load() {
+		t.Fatal("expected upstream API not to be called when threshold is exceeded")
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -57,6 +58,61 @@ func getClaudeQuotaChecker(cfg *config.Config) *claudeauth.ClaudeQuotaChecker {
 		claudeQuotaChecker = claudeauth.NewClaudeQuotaChecker(httpClient)
 	})
 	return claudeQuotaChecker
+}
+
+// checkQuotaThreshold checks if the cached 5-hour quota utilization for the given
+// model and account exceeds the configured threshold. Returns a *quotaThresholdError
+// if the threshold is exceeded, nil otherwise. Safe to call from concurrent goroutines.
+func checkQuotaThreshold(
+	cfg *config.Config,
+	checker *claudeauth.ClaudeQuotaChecker,
+	accountID string,
+	model string,
+) error {
+	if cfg == nil || checker == nil {
+		return nil
+	}
+
+	thresholds := cfg.QuotaExceeded.ClaudeQuotaThresholds
+	if len(thresholds) == 0 {
+		return nil
+	}
+
+	threshold, matched := 0.0, false
+	for pattern, configuredThreshold := range thresholds {
+		didMatch, err := filepath.Match(pattern, model)
+		if err != nil {
+			continue
+		}
+		if !didMatch {
+			continue
+		}
+
+		threshold = configuredThreshold
+		matched = true
+		break
+	}
+	if !matched {
+		return nil
+	}
+
+	quota := checker.GetCachedQuota(accountID)
+	if quota == nil {
+		return nil
+	}
+
+	utilization := quota.FiveHour.Utilization
+	if utilization < threshold {
+		return nil
+	}
+
+	return &quotaThresholdError{
+		model:       model,
+		provider:    "claude",
+		utilization: utilization,
+		threshold:   threshold,
+		resetsAt:    quota.FiveHour.ResetsAt,
+	}
 }
 
 func NewClaudeExecutor(cfg *config.Config) *ClaudeExecutor { return &ClaudeExecutor{cfg: cfg} }
@@ -110,6 +166,14 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		return resp, statusErr{code: http.StatusNotImplemented, msg: "/responses/compact not supported"}
 	}
 	baseModel := thinking.ParseSuffix(req.Model).ModelName
+
+	// Pre-execution quota threshold check: fast-fail before making API call.
+	if auth != nil && auth.ID != "" {
+		qChecker := getClaudeQuotaChecker(e.cfg)
+		if err := checkQuotaThreshold(e.cfg, qChecker, auth.ID, baseModel); err != nil {
+			return resp, err
+		}
+	}
 
 	apiKey, baseURL := claudeCreds(auth)
 	if baseURL == "" {
@@ -267,6 +331,14 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		return nil, statusErr{code: http.StatusNotImplemented, msg: "/responses/compact not supported"}
 	}
 	baseModel := thinking.ParseSuffix(req.Model).ModelName
+
+	// Pre-execution quota threshold check: fast-fail before making API call.
+	if auth != nil && auth.ID != "" {
+		qChecker := getClaudeQuotaChecker(e.cfg)
+		if err := checkQuotaThreshold(e.cfg, qChecker, auth.ID, baseModel); err != nil {
+			return nil, err
+		}
+	}
 
 	apiKey, baseURL := claudeCreds(auth)
 	if baseURL == "" {
@@ -1105,9 +1177,10 @@ func generateBillingHeader(payload []byte) string {
 
 // checkSystemInstructionsWithMode injects Claude Code system prompt to match
 // the real Claude Code request format:
-//   system[0]: billing header (no cache_control)
-//   system[1]: "You are a Claude agent, built on Anthropic's Claude Agent SDK." (with cache_control)
-//   system[2..]: user's system messages (with cache_control on last)
+//
+//	system[0]: billing header (no cache_control)
+//	system[1]: "You are a Claude agent, built on Anthropic's Claude Agent SDK." (with cache_control)
+//	system[2..]: user's system messages (with cache_control on last)
 func checkSystemInstructionsWithMode(payload []byte, strictMode bool) []byte {
 	system := gjson.GetBytes(payload, "system")
 
