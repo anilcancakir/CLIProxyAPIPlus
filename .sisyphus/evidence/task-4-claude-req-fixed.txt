@@ -1,0 +1,19 @@
+# Task 4 — antigravity_claude_request.go fixes verification
+# Date: 2026-02-28
+
+## Check 1: enableThoughtTranslate must NOT exist (count=0)
+grep -c enableThoughtTranslate: 0 ✅
+
+## Check 2: "Continue from:" must exist (count>0)
+grep -c 'Continue from:': 1 ✅
+
+## go build ./... result: PASS ✅
+
+## Changes applied:
+1. enableThoughtTranslate: Already removed in a prior step (flag was gone, lemon final file confirms)
+2. Assistant prefill fix (patch 004): Inserted after the messages loop (after line 364),
+   before the // tools section. Logic:
+   - If last content has role "model" and no functionCall parts → it's prefill
+   - Collect text parts, remove trailing model message
+   - Inject synthetic user message: {"role":"user","parts":[{"text":"Continue from: <prefill>"}]}
+   - Update hasContents based on remaining array
