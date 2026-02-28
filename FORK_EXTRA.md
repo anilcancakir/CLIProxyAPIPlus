@@ -138,6 +138,146 @@ The `antigravity_executor.go` checks `IsRateLimited()` before dispatch, calls `r
 **Files:** `internal/auth/antigravity/quota_checker.go`, `internal/auth/antigravity/rate_limiter.go`, `internal/runtime/executor/antigravity_executor.go`, `internal/api/handlers/management/antigravity_quota.go`
 ---
 
+## Claude Code — Request Cloaking & Prompt Caching
+
+Direct Anthropic API access with identity cloaking, automated prompt caching, and TLS fingerprint bypass. Any client (curl, OpenAI SDK, Roo-Code, etc.) is transparently disguised as the official Claude Code CLI.
+
+### Request Cloaking
+
+`ClaudeExecutor` rewrites outgoing requests to match the official Claude Code CLI v2.1.63 wire format. Clients that are not already identified as Claude Code get a full identity transplant before the request reaches Anthropic.
+
+**Billing header injection**
+
+Every request receives an `x-anthropic-billing-header` containing the CLI version, entrypoint, and a `cch` hash — required for Claude Code subscription billing to apply:
+
+```
+x-anthropic-billing-header: {"version":"2.1.63","entrypoint":"cli","cch":"<hash>"}
+```
+
+**Claude Code agent system prompt**
+
+When cloaking is active, a system prompt is prepended identifying the agent:
+
+```
+You are a Claude agent, built on Anthropic's Claude Agent SDK.
+```
+
+**Fake user_id generation**
+
+Each request is assigned a synthetic user identity matching the Claude Code session format:
+
+```
+user_[64hex]_account_[uuid]_session_[uuid]
+```
+
+With `cache-user-id: true`, the generated ID is stable per configured API key to improve prompt cache hit rates.
+
+**Sensitive word obfuscation**
+
+Words listed under `sensitive-words` in the cloak config are obfuscated via zero-width character insertion before the request is sent, preventing keyword-based filtering.
+
+**Header emulation**
+
+The following headers are set to match Claude Code 2.1.63 / `@anthropic-ai/sdk` 0.74.0:
+
+| Header | Value |
+|:-------|:------|
+| `User-Agent` | `claude-cli/2.1.63 (external, cli)` |
+| `X-Stainless-Package-Version` | `0.74.0` |
+| `X-Stainless-Timeout` | `600` |
+
+Non-Claude clients have their User-Agent forcibly replaced to prevent identity leaks. Tool name prefix is set to an empty string to match real Claude Code behavior.
+
+**Cloak modes**
+
+| Mode | Behavior |
+|:-----|:---------|
+| `auto` (default) | Cloak only non-Claude clients |
+| `always` | Cloak all clients unconditionally |
+| `never` | Disable cloaking entirely |
+
+**Strict mode**
+
+When `strict-mode: true`, all user-supplied system messages are stripped and replaced with the Claude Code identity prompt, ensuring a consistent identity regardless of client input.
+
+### Automated Prompt Caching
+
+Prompt caching cuts repeated inference costs by up to 90% — cached reads are billed at 0.1x the base token price.
+
+`ClaudeExecutor` auto-injects `cache_control: {"type": "ephemeral"}` breakpoints whenever a request arrives with no existing cache markers. Injection follows a three-level priority order, stopping once a valid breakpoint is placed:
+
+1. **Tools** — last tool in the tools array
+2. **System** — last element of the system prompt array
+3. **Messages** — second-to-last user turn
+
+Anthropic permits up to 4 cache breakpoints per request; the executor respects this limit. System prompts receive `ttl: "1h"` cache control for longer-lived caching.
+
+For full caching semantics, see the [Anthropic prompt caching docs](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching).
+
+### TLS Fingerprint Bypass
+
+Standard Go TLS produces a fingerprint that differs from browser and Node.js clients. The `utls_transport.go` replaces the default HTTP client with a `utls`-backed transport:
+
+- **Fingerprint:** `tls.HelloChrome_Auto` — closely matches Node.js/OpenSSL used by the real Claude Code CLI
+- **Connection pooling:** HTTP/2 per-host connection reuse for reduced latency
+- **Proxy support:** `proxy-url` in config is forwarded to the custom transport
+
+### OAuth Authentication
+
+`cliproxyctl login --provider claude` runs an OAuth2 PKCE flow:
+
+1. A local callback server (`oauth_server.go`) opens a browser to the Anthropic authorization URL
+2. The authorization code is captured on the redirect
+3. Tokens are exchanged and stored as `claude-{email}.json`
+
+**Auth file format:**
+
+```json
+{
+  "access_token": "sk-ant-oat...",
+  "refresh_token": "...",
+  "email": "user@example.com",
+  "expired": false
+}
+```
+
+Token refresh is handled by `RefreshTokens()`, which exchanges the refresh token for a new `sk-ant-oat` access token without user interaction.
+
+### Configuration
+
+```yaml
+claude-api-key:
+  - api-key: "sk-ant-..."
+    base-url: "https://api.anthropic.com"  # optional
+    priority: 10
+    cloak:
+      mode: auto        # auto | always | never
+      strict-mode: false
+      sensitive-words: ["secret", "password"]
+      cache-user-id: true
+
+claude-header-defaults:
+  user-agent: "claude-cli/2.1.63 (external, cli)"
+  package-version: "0.74.0"
+  runtime-version: "v24.3.0"
+  timeout: "600"
+```
+
+**Files:**
+
+| File | Purpose |
+|:-----|:--------|
+| `internal/runtime/executor/claude_executor.go` | Core executor with cloaking and prompt caching |
+| `internal/runtime/executor/cloak_utils.go` | Cloak mode detection and user ID generation |
+| `internal/auth/claude/utls_transport.go` | uTLS Chrome fingerprint transport |
+| `internal/auth/claude/oauth_server.go` | OAuth callback server |
+| `internal/auth/claude/anthropic.go` | Auth data structures |
+| `sdk/api/handlers/claude/code_handlers.go` | `/v1/messages` endpoint handler |
+| `sdk/api/handlers/claude/request_sanitize.go` | Request cleanup |
+| `internal/config/config.go` | `ClaudeKey`, `CloakConfig`, `ClaudeHeaderDefaults` types |
+
+---
+
 ## Translator Improvements
 
 ### Thinking Signature Fix (Claude via Antigravity)
@@ -388,6 +528,7 @@ Additional test files not present in upstream:
 | `internal/auth/antigravity/quota_checker_test.go` | Quota checker: caching, 403 handling, model parsing |
 | `internal/auth/antigravity/rate_limiter_test.go` | Rate limiter: reason-based backoff, model isolation |
 | `internal/auth/antigravity/integration_test.go` | End-to-end quota + rate limiter integration |
+| `internal/runtime/executor/claude_executor_test.go` | Cloaking, prompt cache injection, user ID generation |
 
 ---
 

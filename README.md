@@ -29,6 +29,14 @@ Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/
 - **Session ID hardening** with auth-salted format
 - **Quota Tracking** — proactive quota awareness via management API, reason-based backoff, model-level rate limit isolation
 
+### Claude Code — Cloaking & Prompt Caching
+
+- **Request Cloaking** — any client (curl, OpenAI SDK, Roo-Code) is transparently disguised as Claude Code CLI v2.1.63 via billing header injection, agent system prompt, fake user_id, and header emulation
+- **Cloak modes** — `auto` (default, cloak non-Claude clients), `always`, `never`; strict mode strips user system messages to enforce consistent identity
+- **Automated Prompt Caching** — auto-injects `cache_control: {"type": "ephemeral"}` breakpoints (up to 4 per request) across tools, system, and messages layers for up to 90% cost reduction on repeated prompts
+- **TLS Fingerprint Bypass** — `utls` with `tls.HelloChrome_Auto` fingerprint and HTTP/2 connection pooling matches the real Claude Code wire footprint
+- **OAuth2 PKCE** — `cliproxyctl login --provider claude` runs a local callback flow; tokens stored as `claude-{email}.json` and auto-refreshed
+
 ### Translator Fixes
 
 - Thinking signature validation — invalid blocks silently dropped instead of 400 errors
@@ -74,7 +82,7 @@ User-controllable priority for OAuth providers and individual accounts:
 | Antigravity | Token | Anti-fingerprinting, dynamic versioning, quota tracking, priority |
 | Kiro (AWS) | OAuth | Web search, CodeWhisperer, priority |
 | Kilo AI | Device Flow | OpenRouter models, dynamic discovery |
-| Claude | API Key | Request sanitization, priority |
+| Claude | API Key / OAuth | Request cloaking, prompt caching, TLS bypass, priority |
 | Gemini / Vertex | API Key | Turn merging, image generation |
 | Codex | WebSocket | Auto executor registration |
 | OpenAI Compat | API Key | DALL-E / Imagen images |
