@@ -1,58 +1,84 @@
-# CLIProxyAPI Plus
+# CLIProxyAPI Plus (anilcancakir fork)
 
 English | [Chinese](README_CN.md)
 
-This is the Plus version of [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), adding support for third-party providers on top of the mainline project.
+This is an enhanced fork of [CLIProxyAPIPlus](https://github.com/router-for-me/CLIProxyAPIPlus), merging improvements from [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) and [KooshaPari](https://github.com/KooshaPari/cliproxyapi-plusplus) forks on top of the mainline project.
 
-All third-party provider support is maintained by community contributors; CLIProxyAPI does not provide technical support. Please contact the corresponding community maintainer if you need assistance.
+The fork stays in sync with upstream via automated hourly sync and multi-arch Docker builds.
 
-The Plus release stays in lockstep with the mainline features.
+> [!NOTE]
+> For a detailed breakdown of every fork-specific feature, see [FORK_EXTRA.md](FORK_EXTRA.md).
 
-## Differences from the Mainline
+## What's Different
 
-- Added GitHub Copilot support (OAuth login), provided by [em4go](https://github.com/em4go/CLIProxyAPI/tree/feature/github-copilot-auth)
-- Added Kiro (AWS CodeWhisperer) support (OAuth login), provided by [fuko2935](https://github.com/fuko2935/CLIProxyAPI/tree/feature/kiro-integration), [Ravens2121](https://github.com/Ravens2121/CLIProxyAPIPlus/)
+### Copilot — Claude & GPT-5 Routing
 
-## New Features (Plus Enhanced)
+Tri-state endpoint routing enables Claude and GPT-5 models through GitHub Copilot:
 
-- **OAuth Web Authentication**: Browser-based OAuth login for Kiro with beautiful web UI
-- **Rate Limiter**: Built-in request rate limiting to prevent API abuse
-- **Background Token Refresh**: Automatic token refresh 10 minutes before expiration
-- **Metrics & Monitoring**: Request metrics collection for monitoring and debugging
-- **Device Fingerprint**: Device fingerprint generation for enhanced security
-- **Cooldown Management**: Smart cooldown mechanism for API rate limits
-- **Usage Checker**: Real-time usage monitoring and quota management
-- **Model Converter**: Unified model name conversion across providers
-- **UTF-8 Stream Processing**: Improved streaming response handling
+- **Claude** (Sonnet, Opus) → `/v1/messages` with native Anthropic format
+- **GPT-5 / Codex** → `/responses` with Responses API format
+- **Legacy** (GPT-4o, etc.) → `/chat/completions` with OpenAI format
 
-## Kiro Authentication
+Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/machine IDs) for unlimited premium access. Thinking budgets are auto-configured for Sonnet 3.7+ models.
 
-### Web-based OAuth Login
+### Antigravity — Anti-Fingerprinting
 
-Access the Kiro OAuth web interface at:
+- **Dynamic version fetching** from the auto-updater API (12h cache)
+- **Per-account User-Agent** rotation based on auth ID hash
+- **Version downgrade protection** per account
+- **Session ID hardening** with auth-salted format
 
-```
-http://your-server:8080/v0/oauth/kiro
-```
+### Translator Fixes
 
-This provides a browser-based OAuth flow for Kiro (AWS CodeWhisperer) authentication with:
-- AWS Builder ID login
-- AWS Identity Center (IDC) login
-- Token import from Kiro IDE
+- Thinking signature validation — invalid blocks silently dropped instead of 400 errors
+- Consecutive same-role turn merging for Gemini
+- Streaming tool call deltas in Claude-to-OpenAI translation
+- Assistant prefill handling for Gemini models
+
+### SDK Enhancements
+
+- **Sticky Session Routing** — `X-Session-Key` header pins users to the same credential
+- **Fallback Models** — automatic model degradation when primary is exhausted
+- **Claude Request Sanitization** — strips placeholder fields from tool schemas
+- **OpenAI Images API** — cross-provider image generation (DALL-E format → Gemini Imagen)
+- **Extended Config Types** — SDK consumable as a Go library
+
+### Additional Providers
+
+- **Kilo AI** (OpenRouter) — dynamic model discovery, device flow auth, dedicated executor
+- **Kiro Web Search** — MCP-based web search for AWS CodeWhisperer
+- **Smart Routing** — `POST /v1/routing/select` for intent-based model selection
+
+### CLI & Infrastructure
+
+- **cliproxyctl** — CLI tool for setup, login, and diagnostics (`--json` output)
+- **CI/CD** — hourly upstream sync + multi-arch Docker build to DockerHub
+- **Dockerfile patches** — `patches/*.patch` applied during build for clean fork maintenance
+
+## Supported Providers
+
+| Provider | Auth Method | Features |
+|:---------|:-----------|:---------|
+| GitHub Copilot | OAuth | Claude, GPT-5, Codex, Legacy models |
+| Antigravity | Token | Anti-fingerprinting, dynamic versioning |
+| Kiro (AWS) | OAuth | Web search, CodeWhisperer |
+| Kilo AI | Device Flow | OpenRouter models, dynamic discovery |
+| Claude | API Key | Request sanitization |
+| Gemini / Vertex | API Key | Turn merging, image generation |
+| Codex | WebSocket | Auto executor registration |
+| OpenAI Compat | API Key | DALL-E / Imagen images |
 
 ## Quick Deployment with Docker
 
 ### One-Command Deployment
 
 ```bash
-# Create deployment directory
 mkdir -p ~/cli-proxy && cd ~/cli-proxy
 
-# Create docker-compose.yml
 cat > docker-compose.yml << 'EOF'
 services:
   cli-proxy-api:
-    image: eceasy/cli-proxy-api-plus:latest
+    image: anilcancakir/cli-proxy-api-plus:latest
     container_name: cli-proxy-api-plus
     ports:
       - "8317:8317"
@@ -63,23 +89,24 @@ services:
     restart: unless-stopped
 EOF
 
-# Download example config
-curl -o config.yaml https://raw.githubusercontent.com/router-for-me/CLIProxyAPIPlus/main/config.example.yaml
+curl -o config.yaml https://raw.githubusercontent.com/anilcancakir/CLIProxyAPIPlus/main/config.example.yaml
 
-# Pull and start
 docker compose pull && docker compose up -d
 ```
 
 ### Configuration
 
-Edit `config.yaml` before starting:
+Copy the example config and customize:
 
-```yaml
-# Basic configuration example
-server:
-  port: 8317
+```bash
+# Basic config
+cp config.example.yaml config.yaml
 
-# Add your provider configurations here
+# Extended config with Copilot/Antigravity aliases
+cp config.example.custom.yaml config.yaml
+
+# OpenCode/Roo-Code integration reference
+cat example.opencode.json
 ```
 
 ### Update to Latest Version
@@ -88,6 +115,46 @@ server:
 cd ~/cli-proxy
 docker compose pull && docker compose up -d
 ```
+
+Auto-update is also available via the included `docker-auto-update.sh` and `setup-cron.sh` scripts.
+
+## Kiro Authentication
+
+Access the Kiro OAuth web interface at:
+
+```
+http://your-server:8317/v0/oauth/kiro
+```
+
+This provides a browser-based OAuth flow for Kiro (AWS CodeWhisperer) authentication with:
+- AWS Builder ID login
+- AWS Identity Center (IDC) login
+- Token import from Kiro IDE
+
+## cliproxyctl
+
+The CLI control tool provides proxy management without editing YAML:
+
+```bash
+# Interactive setup wizard
+cliproxyctl setup
+
+# OAuth login (Gemini, Kiro)
+cliproxyctl login --provider kiro
+
+# Diagnostic check
+cliproxyctl doctor
+cliproxyctl doctor --json  # machine-readable output
+```
+
+## Attribution
+
+This fork incorporates work from:
+
+- [lemon07r/CLIProxyAPIPlus](https://github.com/lemon07r/CLIProxyAPIPlus) — Copilot Claude routing, anti-fingerprinting, translator fixes
+- [KooshaPari/cliproxyapi-plusplus](https://github.com/KooshaPari/cliproxyapi-plusplus) — SDK enhancements, sticky routing, Kilo provider, CLI tooling
+- [em4go](https://github.com/em4go/CLIProxyAPI/tree/feature/github-copilot-auth) — Original GitHub Copilot OAuth
+- [fuko2935](https://github.com/fuko2935/CLIProxyAPI/tree/feature/kiro-integration), [Ravens2121](https://github.com/Ravens2121/CLIProxyAPIPlus/) — Kiro integration
 
 ## Contributing
 
