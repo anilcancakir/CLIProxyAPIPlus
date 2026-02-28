@@ -117,6 +117,8 @@ func (s *FileSynthesizer) Synthesize(ctx *SynthesisContext) ([]*coreauth.Auth, e
 			switch v := rawPriority.(type) {
 			case float64:
 				a.Attributes["priority"] = strconv.Itoa(int(v))
+			case int:
+				a.Attributes["priority"] = strconv.Itoa(v)
 			case string:
 				priority := strings.TrimSpace(v)
 				if _, errAtoi := strconv.Atoi(priority); errAtoi == nil {
