@@ -34,3 +34,7 @@ bin/*
 .bmad/*
 _bmad/*
 _bmad-output/*
+docker-compose.test.yml
+
+# Agent metadata
+.sisyphus/*

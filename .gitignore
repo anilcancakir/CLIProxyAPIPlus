@@ -53,3 +53,9 @@ _bmad-output/*
 .DS_Store
 ._*
 *.bak
+
+# Local test files
+docker-compose.test.yml
+
+# Sisyphus agent metadata
+.sisyphus/
