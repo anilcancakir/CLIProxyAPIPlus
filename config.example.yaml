@@ -320,6 +320,12 @@ nonstream-keepalive-interval: 0
 #     - name: "gpt-5"
 #       alias: "copilot-gpt5"
 
+# Global OAuth provider priority (higher values = higher priority)
+# oauth-provider-priority:
+#   claude: 10
+#   antigravity: 0
+#   kiro: 5
+
 # OAuth provider excluded models
 # Supported channels: gemini-cli, vertex, aistudio, antigravity, claude, codex, qwen, iflow, kiro, github-copilot.
 # oauth-excluded-models:

@@ -112,7 +112,13 @@ oauth-model-alias:
         - name: gpt-5.2-codex
           alias: copilot-gpt-5.2-codex
           fork: true
-pprof:
+# OAuth Provider Priority — controls which provider is preferred when multiple
+# offer the same model. Higher values = higher priority. Default: 0.
+# Account-level priority in JSON auth files overrides this value.
+oauth-provider-priority:
+    claude: 10        # Prefer direct Claude OAuth over antigravity
+    antigravity: 0    # Default priority
+    kiro: 5           # Medium priority
     enable: false
     addr: 127.0.0.1:8316
 error-logs-max-files: 10
