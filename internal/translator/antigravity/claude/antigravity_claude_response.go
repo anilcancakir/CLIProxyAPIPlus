@@ -436,6 +436,7 @@ func ConvertAntigravityResponseToClaudeNonStream(_ context.Context, _ string, or
 		block := `{"type":"thinking","thinking":""}`
 		block, _ = sjson.Set(block, "thinking", thinkingBuilder.String())
 		if thinkingSignature != "" {
+			cache.CacheSignature(modelName, thinkingBuilder.String(), thinkingSignature)
 			block, _ = sjson.Set(block, "signature", fmt.Sprintf("%s#%s", cache.GetModelGroup(modelName), thinkingSignature))
 		}
 		responseJSON, _ = sjson.SetRaw(responseJSON, "content.-1", block)
