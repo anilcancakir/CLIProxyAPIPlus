@@ -2,7 +2,7 @@ name: Sync Upstream & Build Docker Image
 
 on:
     schedule:
-        - cron: '0 */1 * * *'
+        - cron: '0 */12 * * *'
     workflow_dispatch:
     push:
         branches: [main]
@@ -51,10 +51,9 @@ jobs:
                       git push origin main
                       echo "synced=true" >> $GITHUB_OUTPUT
                     else
-                      echo "Merge conflict detected - attempting automatic resolution"
+                      echo "::error::Merge conflict with upstream. Manual resolution required."
                       git merge --abort
-                      echo "synced=false" >> $GITHUB_OUTPUT
-                      echo "::warning::Merge conflict with upstream. Manual resolution required."
+                      exit 1
                     fi
                   fi
 
