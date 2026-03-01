@@ -276,6 +276,52 @@ claude-header-defaults:
 | `sdk/api/handlers/claude/request_sanitize.go` | Request cleanup |
 | `internal/config/config.go` | `ClaudeKey`, `CloakConfig`, `ClaudeHeaderDefaults` types |
 
+### Quota Threshold Fallback
+
+Per-model quota utilization thresholds that trigger fast 429 errors **before** the API call is made. When a model's 5-hour utilization exceeds the configured threshold, the executor returns a `quotaThresholdError` with `RetryAfter` set to the quota reset time. The conductor's existing fallback mechanism picks up the 429 and routes to alternative providers (Antigravity, Copilot) via priority routing.
+
+**Pre-execution check**
+
+`checkQuotaThreshold()` runs immediately after `baseModel` parsing in both `Execute()` and `ExecuteStream()` — before any HTTP work. It reads `GetCachedQuota()` (thread-safe, read-only via `RLock`) and compares `FiveHour.Utilization` against the configured threshold. Cold starts (no cached quota) pass through without blocking.
+
+**Wildcard matching**
+
+Model patterns support `filepath.Match` wildcards (e.g., `claude-opus-*: 80`). The first matching pattern wins.
+
+**Error interface**
+
+`quotaThresholdError` implements the same interface contract as `modelCooldownError`:
+
+| Method | Behavior |
+|:-------|:---------|
+| `Error()` | JSON with `code: "quota_threshold_exceeded"`, utilization, threshold, reset info |
+| `StatusCode()` | `429 Too Many Requests` |
+| `RetryAfter()` | `*time.Duration` — `time.Until(resetsAt)`, clamped ≥ 0 |
+| `Headers()` | `Content-Type: application/json`, `Retry-After: <seconds>` |
+
+The conductor's `retryAfterFromError()` detects the `RetryAfter() *time.Duration` interface and auto-sets `NextRetryAfter` for recovery — no `StatusDisabled`, no permanent blocks.
+
+**Configuration**
+
+```yaml
+quota-exceeded:
+  claude-quota-threshold:
+    claude-opus-4-5-20251101: 80      # Fail over Opus at 80% utilization
+    claude-sonnet-4-5-20250929: 95    # Fail over Sonnet at 95% utilization
+```
+
+Values are 0–100 utilization percentages matching `FiveHour.Utilization` from the Claude quota API. Hot-reload safe — thresholds are read from the live `cfg` pointer at call time, not at init.
+
+**Files:**
+
+| File | Purpose |
+|:-----|:--------|
+| `internal/runtime/executor/claude_quota_threshold.go` | `quotaThresholdError` struct (110 LOC) |
+| `internal/runtime/executor/claude_executor.go` | `checkQuotaThreshold()` helper + `Execute`/`ExecuteStream` integration |
+| `internal/config/config.go` | `ClaudeQuotaThresholds map[string]float64` field |
+| `internal/runtime/executor/claude_executor_test.go` | Threshold TDD tests (above/below, nil cache, wildcard) |
+| `internal/config/config_test.go` | Config parsing TDD tests |
+
 ---
 
 ## Translator Improvements
@@ -528,7 +574,7 @@ Additional test files not present in upstream:
 | `internal/auth/antigravity/quota_checker_test.go` | Quota checker: caching, 403 handling, model parsing |
 | `internal/auth/antigravity/rate_limiter_test.go` | Rate limiter: reason-based backoff, model isolation |
 | `internal/auth/antigravity/integration_test.go` | End-to-end quota + rate limiter integration |
-| `internal/runtime/executor/claude_executor_test.go` | Cloaking, prompt cache injection, user ID generation |
+| `internal/runtime/executor/claude_executor_test.go` | Cloaking, prompt cache injection, user ID, quota threshold |
 
 ---
 
@@ -542,3 +588,4 @@ Additional test files not present in upstream:
 | SDK routing, fallbacks, sanitization | [KooshaPari](https://github.com/KooshaPari/cliproxyapi-plusplus) | — |
 | Kilo provider, cliproxyctl, TUI | [KooshaPari](https://github.com/KooshaPari/cliproxyapi-plusplus) | — |
 | Antigravity quota tracking | original (this fork) | — |
+| Claude quota threshold fallback | original (this fork) | — |

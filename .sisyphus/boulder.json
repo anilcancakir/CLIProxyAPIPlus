@@ -1,15 +1,8 @@
 {
-  "active_plan": "/Users/anilcan/Code/ai-help/repos/CLIProxyAPIPlus/.sisyphus/plans/claude-code-quota.md",
-  "started_at": "2026-02-28T22:25:48.501Z",
+  "active_plan": "/Users/anilcan/Code/ai-help/repos/CLIProxyAPIPlus/.sisyphus/plans/claude-quota-fallback.md",
+  "started_at": "2026-02-28T23:43:04.462Z",
   "completed_at": "2026-03-01T00:00:00.000Z",
-  "session_ids": [
-    "ses_359a4604cffePWN4SC4eKe80mK",
-    "ses_359a20732ffevp4XZjUnWW1f8H",
-    "ses_3599de4deffeT4UsmD20QF8CXX",
-    "ses_3599897efffekTa6r9Jn16kf5u",
-    "ses_3599841feffeOPQ72P27w3wPC4",
-    "ses_359928ebeffew0Y9CAOhQvdePi"
-  ],
-  "plan_name": "claude-code-quota",
+  "session_ids": ["ses_3595da31cffehMSmWFLL41Bek0"],
+  "plan_name": "claude-quota-fallback",
   "status": "completed"
 }

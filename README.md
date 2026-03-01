@@ -36,6 +36,7 @@ Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/
 - **Automated Prompt Caching** — auto-injects `cache_control: {"type": "ephemeral"}` breakpoints (up to 4 per request) across tools, system, and messages layers for up to 90% cost reduction on repeated prompts
 - **TLS Fingerprint Bypass** — `utls` with `tls.HelloChrome_Auto` fingerprint and HTTP/2 connection pooling matches the real Claude Code wire footprint
 - **OAuth2 PKCE** — `cliproxyctl login --provider claude` runs a local callback flow; tokens stored as `claude-{email}.json` and auto-refreshed
+- **Quota Threshold Fallback** — per-model 5-hour utilization thresholds trigger fast 429 errors before the API call, letting the conductor fall back to alternative providers (Antigravity, Copilot) via existing priority routing
 
 ### Translator Fixes
 
