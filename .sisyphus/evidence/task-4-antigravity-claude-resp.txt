@@ -1,2 +1,0 @@
-// antigravity_claude_response.go changes:
-// - Added thinking signature caching in non-stream path

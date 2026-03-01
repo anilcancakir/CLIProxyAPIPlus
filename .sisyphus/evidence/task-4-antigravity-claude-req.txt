@@ -1,3 +1,0 @@
-// antigravity_claude_request.go changes:
-// - Removed enableThoughtTranslate
-// - Added assistant prefill fix

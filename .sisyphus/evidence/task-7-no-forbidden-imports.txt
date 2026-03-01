@@ -1,8 +1,0 @@
-Import check: grep -rn "pkg/llmproxy\|kooshapari/cliproxyapi-plusplus" test/
-Result: No matches found (exit 1 = grep found nothing = CLEAN)
-
-All 3 new test files use only:
-- github.com/router-for-me/CLIProxyAPI/v6/internal/translator (blank import)
-- github.com/router-for-me/CLIProxyAPI/v6/sdk/translator
-- stdlib: net/http, net/http/httptest, os, os/exec, path/filepath, testing, time, context
-- github.com/tidwall/gjson

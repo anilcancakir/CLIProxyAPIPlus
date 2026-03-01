@@ -1,6 +1,0 @@
-154:func fetchAntigravityVersion() string {
-212:func compareVersions(a, b string) int {
-1629:func resolveUserAgent(auth *cliproxyauth.Auth) string {
-1767:func geminiToAntigravity(modelName string, payload []byte, projectID string, authID string) []byte {
-1801:func generateStableSessionID(payload []byte, authID, modelName, projectID string) string {
-1838:func generateProjectID() string {
