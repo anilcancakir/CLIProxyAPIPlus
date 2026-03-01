@@ -6,7 +6,6 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -220,6 +219,17 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	// based on client type and configuration.
 	body = applyCloaking(ctx, e.cfg, auth, body, baseModel, apiKey)
 
+	// Inject context_management to let Anthropic server manage thinking blocks across turns.
+	contextMgmt := map[string]interface{}{
+		"edits": []map[string]interface{}{
+			{
+				"type": "clear_thinking_20251015",
+				"keep": "all",
+			},
+		},
+	}
+	body, _ = sjson.SetBytes(body, "context_management", contextMgmt)
+
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
 
@@ -395,6 +405,17 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	// Apply cloaking (system prompt injection, fake user ID, sensitive word obfuscation)
 	// based on client type and configuration.
 	body = applyCloaking(ctx, e.cfg, auth, body, baseModel, apiKey)
+
+	// Inject context_management to let Anthropic server manage thinking blocks across turns.
+	contextMgmt := map[string]interface{}{
+		"edits": []map[string]interface{}{
+			{
+				"type": "clear_thinking_20251015",
+				"keep": "all",
+			},
+		},
+	}
+	body, _ = sjson.SetBytes(body, "context_management", contextMgmt)
 
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
@@ -1245,22 +1266,79 @@ func injectFakeUserID(payload []byte, apiKey string, useCache bool) []byte {
 	}
 	return payload
 }
+// extractCharWithFallback returns the character at the given index in text,
+// or the string literal "undefined" if index is out of bounds.
+// This replicates JavaScript's string indexing behavior.
+func extractCharWithFallback(text string, index int) string {
+	if index >= len(text) {
+		return "undefined"
+	}
+	return string(text[index])
+}
+
+// getFirstUserMessageText extracts the text content of the first user-role message
+// from the messages array in the payload. Returns empty string if not found or if
+// the text is not a simple string.
+func getFirstUserMessageText(payload []byte) string {
+	messages := gjson.GetBytes(payload, "messages")
+	if !messages.IsArray() {
+		return ""
+	}
+
+	for _, msg := range messages.Array() {
+		role := msg.Get("role")
+		if role.String() == "user" {
+			content := msg.Get("content")
+			// If content is a string, use it directly.
+			if content.Type == gjson.String {
+				return content.String()
+			}
+			// If content is an array, find first text block.
+			if content.IsArray() {
+				for _, block := range content.Array() {
+					if blockType := block.Get("type"); blockType.String() == "text" {
+						if text := block.Get("text"); text.Exists() {
+							return text.String()
+						}
+					}
+				}
+			}
+			// User message found but no extractable text.
+			return ""
+		}
+	}
+	return ""
+}
 
 // generateBillingHeader creates the x-anthropic-billing-header text block that
 // real Claude Code prepends to every system prompt array.
 // Format: x-anthropic-billing-header: cc_version=<ver>.<build>; cc_entrypoint=cli; cch=<hash>;
+//
+// buildHash is deterministic, derived from the first user message text:
+// sha256("59cf53e54c78" + text[4] + text[7] + text[20] + "2.1.42")[:3]
+// where out-of-bounds indices return the string "undefined".
 func generateBillingHeader(payload []byte) string {
-	// Generate a deterministic cch hash from the payload content (system + messages + tools).
-	// Real Claude Code uses a 5-char hex hash that varies per request.
-	h := sha256.Sum256(payload)
-	cch := hex.EncodeToString(h[:])[:5]
+	// Extract first user message text.
+	firstUserText := getFirstUserMessageText(payload)
 
-	// Build hash: 3-char hex, matches the pattern seen in real requests (e.g. "a43")
-	buildBytes := make([]byte, 2)
-	_, _ = rand.Read(buildBytes)
-	buildHash := hex.EncodeToString(buildBytes)[:3]
+	// Extract characters at indices 4, 7, 20 (with "undefined" fallback).
+	ch4 := extractCharWithFallback(firstUserText, 4)
+	ch7 := extractCharWithFallback(firstUserText, 7)
+	ch20 := extractCharWithFallback(firstUserText, 20)
 
-	return fmt.Sprintf("x-anthropic-billing-header: cc_version=2.1.63.%s; cc_entrypoint=cli; cch=%s;", buildHash, cch)
+	// Build deterministic hash: sha256("59cf53e54c78" + chars + "2.1.42")[:3]
+	hashInput := "59cf53e54c78" + ch4 + ch7 + ch20 + "2.1.42"
+	hashBytes := sha256.Sum256([]byte(hashInput))
+	buildHash := hex.EncodeToString(hashBytes[:])[:3]
+
+	// cch is hardcoded.
+	cch := "00000"
+
+	return fmt.Sprintf(
+		"x-anthropic-billing-header: cc_version=2.1.63.%s; cc_entrypoint=cli; cch=%s;",
+		buildHash,
+		cch,
+	)
 }
 
 // checkSystemInstructionsWithMode injects Claude Code-style system blocks:
@@ -1813,6 +1891,12 @@ func injectMessagesCacheControl(payload []byte) []byte {
 		// Add cache_control to the last content block of this message
 		contentCount := int(content.Get("#").Int())
 		if contentCount > 0 {
+			// Never add cache_control to thinking blocks — it invalidates their signature.
+			lastBlockTypePath := fmt.Sprintf("messages.%d.content.%d.type", secondToLastUserIdx, contentCount-1)
+			lastBlockType := gjson.GetBytes(payload, lastBlockTypePath).String()
+			if lastBlockType == "thinking" || lastBlockType == "redacted_thinking" {
+				return payload
+			}
 			cacheControlPath := fmt.Sprintf("messages.%d.content.%d.cache_control", secondToLastUserIdx, contentCount-1)
 			result, err := sjson.SetBytes(payload, cacheControlPath, map[string]string{"type": "ephemeral"})
 			if err != nil {
