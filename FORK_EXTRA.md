@@ -282,21 +282,23 @@ claude-header-defaults:
 
 ### Thinking Signature Stability (Multi-Turn)
 
-Extended thinking responses include cryptographic signatures that are bound to the exact system prompt content. Any variation in system prompt between turns causes `Invalid 'signature' in 'thinking' block` 400 errors. Three fixes address this:
+Extended thinking responses include cryptographic signatures that are bound to the full request context (system prompt, model, session state). The proxy's cloaking system mutates the system prompt every turn (billing header, agent ID, cache_control injection), which invalidates any historical thinking signatures — causing `Invalid 'signature' in 'thinking' block` 400 errors.
+
+**Proxy-side thinking block stripping**
+
+`stripThinkingBlocks()` removes all `thinking` and `redacted_thinking` content blocks from assistant messages before the request is sent to Claude. Per Anthropic docs, prior-turn thinking blocks are optional — Claude accepts conversations without them. This eliminates signature validation entirely, making the proxy's cloaking mutations irrelevant to signature integrity.
+
+If an assistant message becomes empty after stripping (i.e., it contained only thinking blocks), the entire message is removed to avoid sending invalid empty-content messages.
+
+Called in both `Execute()` and `ExecuteStream()` before `applyCloaking()` — so the strip happens before any system prompt mutation.
 
 **Deterministic billing header**
 
 `generateBillingHeader()` replicates Claude Code's exact algorithm: `sha256("59cf53e54c78" + text[4] + text[7] + text[20] + "2.1.42")[:3]` with `extractCharWithFallback()` handling JavaScript's out-of-bounds `undefined` quirk. The `cch` field is hardcoded to `"00000"`. This ensures the billing header injected into the system prompt is identical across turns for the same conversation.
 
-**Conditional context_management injection**
-
-`injectContextManagementIfThinking()` injects `context_management` with `clear_thinking_20251015` (keep: `all`) only when thinking type is `enabled` or `adaptive`. Injecting on non-thinking requests causes Anthropic to reject with 400 (`Extra inputs`). Called after `disableThinkingIfToolChoiceForced()` so the check reflects the final thinking state.
-
 **Thinking-safe cache control**
 
 `injectMessagesCacheControl()` guards block type before adding `cache_control` — skips `thinking` and `redacted_thinking` blocks to prevent signature invalidation.
-
-**Files:** `internal/runtime/executor/claude_executor.go`, `internal/runtime/executor/thinking_signature_test.go`, `internal/runtime/executor/billing_header_test.go`
 
 ### Beta Header Resilience
 
@@ -623,7 +625,7 @@ Additional test files not present in upstream:
 | `internal/auth/antigravity/integration_test.go` | End-to-end quota + rate limiter integration |
 | `internal/runtime/executor/claude_executor_test.go` | Cloaking, prompt cache injection, user ID, quota threshold |
 | `internal/runtime/executor/billing_header_test.go` | Billing header determinism, `extractCharWithFallback`, JS `undefined` quirk |
-| `internal/runtime/executor/thinking_signature_test.go` | Thinking block cache_control guard, `context_management` structure |
+| `internal/runtime/executor/thinking_signature_test.go` | Thinking block stripping, cache_control guard, signature preservation |
 
 ---
 

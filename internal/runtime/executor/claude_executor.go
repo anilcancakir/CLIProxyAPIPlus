@@ -214,6 +214,14 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		return resp, err
 	}
 
+	// Strip thinking blocks from historical assistant messages to prevent
+	// signature invalidation. Cloaking mutates the system prompt (billing header,
+	// agent ID, cache_control), which changes the context that thinking signatures
+	// are cryptographically bound to. Claude accepts conversations without prior
+	// thinking blocks — only the latest tool-use loop needs them, and even those
+	// become invalid after system prompt mutation.
+	body = stripThinkingBlocks(body)
+
 	// Apply cloaking (system prompt injection, fake user ID, sensitive word obfuscation)
 	// based on client type and configuration.
 	body = applyCloaking(ctx, e.cfg, auth, body, baseModel, apiKey)
@@ -225,10 +233,6 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	// Disable thinking if tool_choice forces tool use (Anthropic API constraint)
 	body = disableThinkingIfToolChoiceForced(body)
 
-	// Inject context_management only when thinking is enabled/adaptive.
-	// clear_thinking_20251015 requires thinking to be active — injecting it
-	// on non-thinking requests causes Anthropic to reject with 400.
-	body = injectContextManagementIfThinking(body)
 
 	// Auto-inject cache_control if missing (optimization for ClawdBot/clients without caching support)
 	if countCacheControls(body) == 0 {
@@ -396,6 +400,9 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		return nil, err
 	}
 
+	// Strip thinking blocks — see comment in Execute() for rationale.
+	body = stripThinkingBlocks(body)
+
 	// Apply cloaking (system prompt injection, fake user ID, sensitive word obfuscation)
 	// based on client type and configuration.
 	body = applyCloaking(ctx, e.cfg, auth, body, baseModel, apiKey)
@@ -407,8 +414,6 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	// Disable thinking if tool_choice forces tool use (Anthropic API constraint)
 	body = disableThinkingIfToolChoiceForced(body)
 
-	// Inject context_management only when thinking is enabled/adaptive.
-	body = injectContextManagementIfThinking(body)
 
 	// Auto-inject cache_control if missing (optimization for ClawdBot/clients without caching support)
 	if countCacheControls(body) == 0 {
@@ -748,27 +753,83 @@ func disableThinkingIfToolChoiceForced(body []byte) []byte {
 	return body
 }
 
-// injectContextManagementIfThinking conditionally injects context_management into the
-// request body. The clear_thinking_20251015 strategy requires thinking to be enabled
-// or adaptive — injecting it unconditionally causes Anthropic to reject with 400.
+// stripThinkingBlocks removes all thinking and redacted_thinking content blocks
+// from assistant messages in the payload.
 //
-// Must be called AFTER disableThinkingIfToolChoiceForced so that the check reflects
-// the final thinking state.
-func injectContextManagementIfThinking(body []byte) []byte {
-	thinkingType := gjson.GetBytes(body, "thinking.type").String()
-	if thinkingType != "enabled" && thinkingType != "adaptive" {
-		return body
+// Thinking signatures are cryptographically bound to the full request context
+// (system prompt, model, session state). The proxy's cloaking system mutates the
+// system prompt every turn (billing header, agent ID, cache_control), which
+// invalidates any historical thinking signatures.
+//
+// Per Anthropic docs, prior-turn thinking blocks are optional — Claude accepts
+// conversations without them. Stripping them prevents 400 "Invalid signature"
+// errors while keeping cloaking and prompt caching fully functional.
+//
+// If an assistant message becomes empty after stripping, the entire message is
+// removed to avoid sending messages with no content.
+func stripThinkingBlocks(payload []byte) []byte {
+	messages := gjson.GetBytes(payload, "messages")
+	if !messages.Exists() || !messages.IsArray() {
+		return payload
 	}
-	contextMgmt := map[string]interface{}{
-		"edits": []map[string]interface{}{
-			{
-				"type": "clear_thinking_20251015",
-				"keep": "all",
-			},
-		},
+
+	msgArray := messages.Array()
+	hasThinking := false
+	for _, msg := range msgArray {
+		if msg.Get("role").String() != "assistant" {
+			continue
+		}
+		content := msg.Get("content")
+		if !content.IsArray() {
+			continue
+		}
+		for _, block := range content.Array() {
+			bt := block.Get("type").String()
+			if bt == "thinking" || bt == "redacted_thinking" {
+				hasThinking = true
+				break
+			}
+		}
+		if hasThinking {
+			break
+		}
 	}
-	body, _ = sjson.SetBytes(body, "context_management", contextMgmt)
-	return body
+	if !hasThinking {
+		return payload
+	}
+
+	// Walk messages in reverse to safely delete by index.
+	for i := len(msgArray) - 1; i >= 0; i-- {
+		msg := msgArray[i]
+		if msg.Get("role").String() != "assistant" {
+			continue
+		}
+		content := msg.Get("content")
+		if !content.IsArray() {
+			continue
+		}
+
+		// Walk content blocks in reverse, removing thinking entries.
+		contentArray := content.Array()
+		remaining := 0
+		for j := len(contentArray) - 1; j >= 0; j-- {
+			bt := contentArray[j].Get("type").String()
+			if bt == "thinking" || bt == "redacted_thinking" {
+				path := fmt.Sprintf("messages.%d.content.%d", i, j)
+				payload, _ = sjson.DeleteBytes(payload, path)
+			} else {
+				remaining++
+			}
+		}
+
+		// If all content blocks were thinking, remove the entire message.
+		if remaining == 0 {
+			path := fmt.Sprintf("messages.%d", i)
+			payload, _ = sjson.DeleteBytes(payload, path)
+		}
+	}
+
+	return payload
 }
 
 type compositeReadCloser struct {

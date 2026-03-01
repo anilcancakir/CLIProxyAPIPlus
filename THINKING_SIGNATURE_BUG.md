@@ -257,27 +257,25 @@ internal/translator/antigravity/claude/antigravity_claude_request.go
 
 ---
 
-## Fix Applied
+## Fix Applied (v2 — Thinking Block Stripping)
 
-> **Date fixed**: 2026-03-01  
+> **Date fixed**: 2026-03-01 (v1: deterministic headers), 2026-03-02 (v2: proxy-side strip)  
 > **Status**: **RESOLVED**
 
-The issue is fixed across all three identified bug vectors:
+The initial v1 fix (deterministic billing header + `context_management` injection + thinking-safe cache control) was insufficient. `context_management` with `clear_thinking_20251015` is processed server-side AFTER request validation — so the API still rejects invalid signatures before the directive takes effect.
 
-1. **Non-deterministic billing header context drift**
-   - `generateBillingHeader()` was made deterministic so repeated turns keep a stable cloaked system context.
-   - This removed per-turn randomness that previously invalidated historical thinking signatures.
+### v2: Proxy-side thinking block stripping
 
-2. **Missing server-side thinking lifecycle management**
-   - `context_management` is now injected at request root in Claude execution paths.
-   - Injected value:
-     - `edits[0].type = "clear_thinking_20251015"`
-     - `edits[0].keep = "all"`
-   - This delegates cross-turn thinking cleanup to Anthropic's supported mechanism.
+`stripThinkingBlocks()` removes all `thinking` and `redacted_thinking` content blocks from assistant messages **before** `applyCloaking()` runs. Per Anthropic docs, prior-turn thinking blocks are optional — Claude accepts conversations without them.
 
-3. **cache_control applied to signed thinking blocks**
-   - `injectMessagesCacheControl()` now guards the target content block type.
-   - If the second-to-last user message's last content block is `thinking` or `redacted_thinking`, cache control injection is skipped.
-   - Existing behavior for non-thinking content blocks (e.g. `text`) remains intact.
+This eliminates signature validation entirely:
+- No signatures in the request → no validation → no 400 errors
+- Works regardless of what cloaking does to system prompts
+- Works for ALL clients (OpenCode, Roo-Code, curl, etc.)
+- Empty assistant messages (thinking-only) are removed entirely
 
-Result: multi-turn requests no longer mutate signed thinking blocks or produce signature mismatch failures from these paths.
+### v1 fixes retained
+
+1. **Deterministic billing header** — `generateBillingHeader()` remains deterministic for cache hit stability
+2. **Thinking-safe cache control** — `injectMessagesCacheControl()` still guards thinking blocks as a defense-in-depth measure
+3. **`injectContextManagementIfThinking()` removed** — no longer needed; proxy-side strip handles the problem upstream
