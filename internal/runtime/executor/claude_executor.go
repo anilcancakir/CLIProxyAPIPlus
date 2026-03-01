@@ -905,8 +905,10 @@ func applyClaudeHeaders(r *http.Request, auth *cliproxyauth.Auth, apiKey string,
 		if !strings.Contains(val, "oauth") {
 			baseBetas += ",oauth-2025-04-20"
 		}
+		if !strings.Contains(val, "context-management") {
+			baseBetas += ",context-management-2025-06-27"
+		}
 	}
-
 	hasClaude1MHeader := false
 	if ginHeaders != nil {
 		if _, ok := ginHeaders[textproto.CanonicalMIMEHeaderKey("X-CPA-CLAUDE-1M")]; ok {
