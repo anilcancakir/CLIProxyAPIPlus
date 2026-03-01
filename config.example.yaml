@@ -100,8 +100,8 @@ quota-exceeded:
   # existing priority routing. Quota auto-recovers when the 5-hour window resets.
   # Supports wildcard patterns (e.g., "claude-opus-*: 80").
   claude-quota-threshold:
-    claude-opus-4-5-20251101: 80      # Fail over Opus at 80% utilization
-    claude-sonnet-4-5-20250929: 95    # Fail over Sonnet at 95% utilization
+    claude-opus-4-6: 80              # Fail over Opus at 80% utilization
+    claude-sonnet-4-6: 95            # Fail over Sonnet at 95% utilization
 
 # Routing strategy for selecting credentials when multiple match.
 routing:
@@ -285,58 +285,60 @@ nonstream-keepalive-interval: 0
 # NOTE: Aliases do not apply to gemini-api-key, codex-api-key, claude-api-key, openai-compatibility, vertex-api-key, or ampcode.
 # You can repeat the same name with different aliases to expose multiple client model names.
 # oauth-model-alias:
-#  antigravity:
-#    - name: "rev19-uic3-1p"
-#      alias: "gemini-2.5-computer-use-preview-10-2025"
-#    - name: "gemini-3-pro-image"
-#      alias: "gemini-3-pro-image-preview"
-#    - name: "gemini-3-pro-high"
-#      alias: "gemini-3-pro-preview"
-#    - name: "gemini-3-flash"
-#      alias: "gemini-3-flash-preview"
-#    - name: "claude-sonnet-4-5"
-#      alias: "gemini-claude-sonnet-4-5"
-#    - name: "claude-sonnet-4-5-thinking"
-#      alias: "gemini-claude-sonnet-4-5-thinking"
-#    - name: "claude-opus-4-5-thinking"
-#      alias: "gemini-claude-opus-4-5-thinking"
-#   gemini-cli:
-#     - name: "gemini-2.5-pro"          # original model name under this channel
-#       alias: "g2.5p"                  # client-visible alias
-#       fork: true                      # when true, keep original and also add the alias as an extra model (default: false)
-#   vertex:
-#     - name: "gemini-2.5-pro"
-#       alias: "g2.5p"
-#   aistudio:
-#     - name: "gemini-2.5-pro"
-#       alias: "g2.5p"
+#   antigravity:
+#     - name: "gemini-3-flash"
+#       alias: "gemini-flash"
+#       fork: true                    # keep original and also add the alias as an extra model
+#     - name: "gemini-3.1-pro-high"
+#       alias: "gemini-pro"
+#       fork: true
+#     - name: "claude-opus-4-6-thinking"
+#       alias: "claude-opus"          # expose AG Claude Opus under a short alias
+#       fork: true
 #   claude:
-#     - name: "claude-sonnet-4-5-20250929"
-#       alias: "cs4.5"
+#     - name: "claude-opus-4-6"
+#       alias: "claude-opus"          # short alias for direct Claude OAuth
+#       fork: true
+#     - name: "claude-sonnet-4-6"
+#       alias: "claude-sonnet"
+#       fork: true
+#     - name: "claude-haiku-4-5-20251001"
+#       alias: "claude-haiku"
+#       fork: true
 #   codex:
-#     - name: "gpt-5"
-#       alias: "g5"
-#   qwen:
-#     - name: "qwen3-coder-plus"
-#       alias: "qwen-plus"
-#   iflow:
-#     - name: "glm-4.7"
-#       alias: "glm-god"
-#   kimi:
-#     - name: "kimi-k2.5"
-#       alias: "k2.5"
-#   kiro:
-#     - name: "kiro-claude-opus-4-5"
-#       alias: "op45"
+#     - name: "gpt-5.3-codex"
+#       alias: "codex3"
+#       fork: true
+#     - name: "gpt-5.2-codex"
+#       alias: "codex2"
+#       fork: true
 #   github-copilot:
-#     - name: "gpt-5"
-#       alias: "copilot-gpt5"
+#     - name: "claude-sonnet-4.6"
+#       alias: "claude-sonnet"
+#       fork: true
+#     - name: "claude-haiku-4.5"
+#       alias: "claude-haiku"
+#       fork: true
+#   kiro:
+#     - name: "kiro-claude-sonnet-4-6"
+#       alias: "claude-sonnet-4-6"    # map Kiro model names to standard Claude aliases
+#       fork: true
+#     - name: "kiro-claude-opus-4-6"
+#       alias: "claude-opus-4-6"
+#       fork: true
+#     - name: "kiro-claude-haiku-4-5"
+#       alias: "claude-haiku-4-5-20251001"
+#       fork: true
 
-# Global OAuth provider priority (higher values = higher priority)
+# Global OAuth provider priority (higher values = higher priority).
+# When multiple providers offer the same model alias, the provider with the
+# highest priority is tried first. Account-level "priority" in JSON auth files
+# overrides these values.
 # oauth-provider-priority:
-#   claude: 10
-#   antigravity: 0
-#   kiro: 5
+#   claude: 20            # Prefer direct Claude OAuth (highest)
+#   antigravity: 5        # Gemini/Claude via Antigravity
+#   kiro: 3               # AWS Kiro
+#   github-copilot: 0     # Copilot as last resort
 
 # OAuth provider excluded models
 # Supported channels: gemini-cli, vertex, aistudio, antigravity, claude, codex, qwen, iflow, kiro, github-copilot.

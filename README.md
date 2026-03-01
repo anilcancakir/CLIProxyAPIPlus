@@ -4,7 +4,7 @@ English | [Chinese](README_CN.md)
 
 This is an enhanced fork of [CLIProxyAPIPlus](https://github.com/router-for-me/CLIProxyAPIPlus), merging improvements from [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) and [KooshaPari](https://github.com/KooshaPari/cliproxyapi-plusplus) forks on top of the mainline project.
 
-The fork stays in sync with upstream via automated hourly sync and multi-arch Docker builds.
+The fork stays in sync with upstream via automated 12-hour sync and amd64 Docker builds.
 
 > [!NOTE]
 > For a detailed breakdown of every fork-specific feature, see [FORK_EXTRA.md](FORK_EXTRA.md).
@@ -31,9 +31,12 @@ Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/
 
 ### Claude Code — Cloaking & Prompt Caching
 
-- **Request Cloaking** — any client (curl, OpenAI SDK, Roo-Code) is transparently disguised as Claude Code CLI v2.1.63 via billing header injection, agent system prompt, fake user_id, and header emulation
+- **Request Cloaking** — any client (curl, OpenAI SDK, Roo-Code) is transparently disguised as Claude Code CLI v2.1.63 via deterministic billing header injection, agent system prompt, fake user_id, and header emulation
 - **Cloak modes** — `auto` (default, cloak non-Claude clients), `always`, `never`; strict mode strips user system messages to enforce consistent identity
-- **Automated Prompt Caching** — auto-injects `cache_control: {"type": "ephemeral"}` breakpoints (up to 4 per request) across tools, system, and messages layers for up to 90% cost reduction on repeated prompts
+- **Automated Prompt Caching** — auto-injects `cache_control: {"type": "ephemeral"}` breakpoints (up to 4 per request) across tools, system, and messages layers for up to 90% cost reduction on repeated prompts; thinking/redacted_thinking blocks are excluded to preserve signature integrity
+- **Thinking Signature Stability** — deterministic billing headers, conditional `context_management` injection (thinking-only), and thinking-safe cache control prevent `Invalid signature` 400 errors in multi-turn conversations with extended thinking
+- **1M Context Window** — `X-CPA-CLAUDE-1M` request header auto-injects the `context-1m-2025-08-07` beta for 1M token context support
+- **Beta Header Resilience** — essential cloaking betas (`claude-code`, `oauth`, `interleaved-thinking`, `context-management`, `prompt-caching-scope`) are force-appended when clients send their own `Anthropic-Beta` header, preventing identity leaks
 - **TLS Fingerprint Bypass** — `utls` with `tls.HelloChrome_Auto` fingerprint and HTTP/2 connection pooling matches the real Claude Code wire footprint
 - **OAuth2 PKCE** — `cliproxyctl login --provider claude` runs a local callback flow; tokens stored as `claude-{email}.json` and auto-refreshed
 - **Quota Threshold Fallback** — per-model 5-hour utilization thresholds trigger fast 429 errors before the API call, letting the conductor fall back to alternative providers (Antigravity, Copilot) via existing priority routing
@@ -72,7 +75,7 @@ User-controllable priority for OAuth providers and individual accounts:
 ### CLI & Infrastructure
 
 - **cliproxyctl** — CLI tool for setup, login, and diagnostics (`--json` output)
-- **CI/CD** — hourly upstream sync + multi-arch Docker build to DockerHub
+- **CI/CD** — 12-hour upstream sync + amd64 Docker build to DockerHub; upstream merge conflicts fail the build for manual resolution
 - **Dockerfile patches** — `patches/*.patch` applied during build for clean fork maintenance
 
 ## Supported Providers
@@ -90,6 +93,7 @@ User-controllable priority for OAuth providers and individual accounts:
 
 ## Quick Deployment with Docker
 
+Pre-built images are published to [Docker Hub](https://hub.docker.com/r/anilcancakir/cli-proxy-api-plus).
 ### One-Command Deployment
 
 ```bash

@@ -28,12 +28,11 @@ quota-exceeded:
     # existing priority routing. Quota auto-recovers when the 5-hour window resets.
     # Supports wildcard patterns (e.g., "claude-opus-*: 80").
     claude-quota-threshold:
-        claude-opus-4-5-20251101: 80      # Fail over Opus at 80% utilization
-        claude-sonnet-4-5-20250929: 95    # Fail over Sonnet at 95% utilization
+        claude-opus-4-6: 80              # Fail over Opus at 80% utilization
+        claude-sonnet-4-6: 95            # Fail over Sonnet at 95% utilization
 routing:
-    strategy: round-robin
-ws-auth: false
-nonstream-keepalive-interval: 10
+    strategy: fill-first  # fill-first exhausts one credential before moving to next; round-robin (default) rotates
+nonstream-keepalive-interval: 15
 request-timeout: 900
 streaming:
     keepalive-seconds: 15
@@ -44,89 +43,50 @@ oauth-model-alias:
     qwen:
         - name: coder-model
           alias: qwen3.5-plus
-    # Antigravity aliases: rename Claude models to appear as Gemini models
+    # Antigravity aliases: expose Claude/Gemini models under short names
     antigravity:
+        - name: gemini-3-flash
+          alias: gemini-flash
+          fork: true
+        - name: gemini-3.1-pro-high
+          alias: gemini-pro
+          fork: true
         - name: claude-opus-4-6-thinking
-          alias: gemini-3-claude-opus-4-6-thinking
-        - name: claude-sonnet-4-5-thinking
-          alias: gemini-3-claude-sonnet-4-5-thinking
-    # Codex aliases: fork GPT models under codex- prefix
+          alias: claude-opus
+          fork: true
     codex:
-        - name: gpt-5
-          alias: codex-gpt-5
-          fork: true
-        - name: gpt-5-codex
-          alias: codex-gpt-5-codex
-          fork: true
-        - name: gpt-5-codex-mini
-          alias: codex-gpt-5-codex-mini
-          fork: true
-        - name: gpt-5.1
-          alias: codex-gpt-5.1
-          fork: true
-        - name: gpt-5.1-codex
-          alias: codex-gpt-5.1-codex
-          fork: true
-        - name: gpt-5.1-codex-max
-          alias: codex-gpt-5.1-codex-max
-          fork: true
-        - name: gpt-5.1-codex-mini
-          alias: codex-gpt-5.1-codex-mini
-          fork: true
-        - name: gpt-5.2
-          alias: codex-gpt-5.2
-          fork: true
         - name: gpt-5.3-codex
-          alias: codex-gpt-5.3-codex
+          alias: codex3
           fork: true
-    # Copilot aliases: fork models under copilot- prefix (requires patch 005)
+        - name: gpt-5.2-codex
+          alias: codex2
+          fork: true
     github-copilot:
-        - name: gpt-4.1
-          alias: copilot-gpt-4.1
-          fork: true
-        - name: gpt-5-mini
-          alias: copilot-gpt-5-mini
-          fork: true
-        - name: claude-opus-4.1
-          alias: copilot-claude-opus-4.1
-          fork: true
-        - name: claude-opus-4.5
-          alias: copilot-claude-opus-4.5
-          fork: true
-        - name: claude-opus-4.6
-          alias: copilot-claude-opus-4.6
-          fork: true
-        - name: claude-sonnet-4
-          alias: copilot-claude-sonnet-4
-          fork: true
-        - name: claude-sonnet-4.5
-          alias: copilot-claude-sonnet-4.5
+        - name: claude-sonnet-4.6
+          alias: copilot-claude-sonnet-4.6
           fork: true
         - name: claude-haiku-4.5
           alias: copilot-claude-haiku-4.5
           fork: true
-        - name: gemini-2.5-pro
-          alias: copilot-gemini-2.5-pro
+    # Kiro aliases: map kiro-prefixed models to standard Claude names
+    kiro:
+        - name: kiro-claude-sonnet-4-6
+          alias: claude-sonnet-4-6
           fork: true
-        - name: gemini-3-pro-preview
-          alias: copilot-gemini-3-pro-preview
+        - name: kiro-claude-opus-4-6
+          alias: claude-opus-4-6
           fork: true
-        - name: gemini-3-flash-preview
-          alias: copilot-gemini-3-flash-preview
-          fork: true
-        - name: gpt-5.2
-          alias: copilot-gpt-5.2
-          fork: true
-        - name: gpt-5.2-codex
-          alias: copilot-gpt-5.2-codex
+        - name: kiro-claude-haiku-4-5
+          alias: claude-haiku-4-5-20251001
           fork: true
 # OAuth Provider Priority — controls which provider is preferred when multiple
 # offer the same model. Higher values = higher priority. Default: 0.
 # Account-level priority in JSON auth files overrides this value.
 oauth-provider-priority:
-    claude: 10        # Prefer direct Claude OAuth over antigravity
-    antigravity: 0    # Default priority
-    kiro: 5           # Medium priority
+    claude: 20            # Prefer direct Claude OAuth (highest)
+    antigravity: 5        # Gemini/Claude via Antigravity
+    kiro: 3               # AWS Kiro
+    github-copilot: 0     # Copilot as last resort
 pprof:
     enable: false
     addr: 127.0.0.1:8316

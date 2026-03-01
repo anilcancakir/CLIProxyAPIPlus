@@ -148,11 +148,13 @@ Direct Anthropic API access with identity cloaking, automated prompt caching, an
 
 **Billing header injection**
 
-Every request receives an `x-anthropic-billing-header` containing the CLI version, entrypoint, and a `cch` hash — required for Claude Code subscription billing to apply:
+Every request receives an `x-anthropic-billing-header` containing the CLI version, entrypoint, and a `cch` hash — required for Claude Code subscription billing to apply. The header is **deterministic**: it uses a SHA-256 hash derived from the first user message text (characters at indices 4, 7, 20 with JavaScript-style `undefined` fallback for out-of-bounds) and a fixed salt, ensuring the same system prompt content is produced across turns.
 
 ```
-x-anthropic-billing-header: {"version":"2.1.63","entrypoint":"cli","cch":"<hash>"}
+x-anthropic-billing-header: cc_version=2.1.63.<buildHash>; cc_entrypoint=cli; cch=00000;
 ```
+
+Key functions: `generateBillingHeader()`, `extractCharWithFallback()`, `getFirstUserMessageText()`
 
 **Claude Code agent system prompt**
 
@@ -211,6 +213,8 @@ Prompt caching cuts repeated inference costs by up to 90% — cached reads are b
 3. **Messages** — second-to-last user turn
 
 Anthropic permits up to 4 cache breakpoints per request; the executor respects this limit. System prompts receive `ttl: "1h"` cache control for longer-lived caching.
+
+**Thinking block guard**: `injectMessagesCacheControl()` skips `thinking` and `redacted_thinking` content blocks — adding `cache_control` to these blocks invalidates the cryptographic signature that Claude attaches to thinking content, causing 400 errors on subsequent turns.
 
 For full caching semantics, see the [Anthropic prompt caching docs](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching).
 
@@ -275,6 +279,48 @@ claude-header-defaults:
 | `sdk/api/handlers/claude/code_handlers.go` | `/v1/messages` endpoint handler |
 | `sdk/api/handlers/claude/request_sanitize.go` | Request cleanup |
 | `internal/config/config.go` | `ClaudeKey`, `CloakConfig`, `ClaudeHeaderDefaults` types |
+
+### Thinking Signature Stability (Multi-Turn)
+
+Extended thinking responses include cryptographic signatures that are bound to the exact system prompt content. Any variation in system prompt between turns causes `Invalid 'signature' in 'thinking' block` 400 errors. Three fixes address this:
+
+**Deterministic billing header**
+
+`generateBillingHeader()` replicates Claude Code's exact algorithm: `sha256("59cf53e54c78" + text[4] + text[7] + text[20] + "2.1.42")[:3]` with `extractCharWithFallback()` handling JavaScript's out-of-bounds `undefined` quirk. The `cch` field is hardcoded to `"00000"`. This ensures the billing header injected into the system prompt is identical across turns for the same conversation.
+
+**Conditional context_management injection**
+
+`injectContextManagementIfThinking()` injects `context_management` with `clear_thinking_20251015` (keep: `all`) only when thinking type is `enabled` or `adaptive`. Injecting on non-thinking requests causes Anthropic to reject with 400 (`Extra inputs`). Called after `disableThinkingIfToolChoiceForced()` so the check reflects the final thinking state.
+
+**Thinking-safe cache control**
+
+`injectMessagesCacheControl()` guards block type before adding `cache_control` — skips `thinking` and `redacted_thinking` blocks to prevent signature invalidation.
+
+**Files:** `internal/runtime/executor/claude_executor.go`, `internal/runtime/executor/thinking_signature_test.go`, `internal/runtime/executor/billing_header_test.go`
+
+### Beta Header Resilience
+
+When clients (e.g., OpenCode) send their own `Anthropic-Beta` header, the proxy previously replaced `baseBetas` entirely — dropping essential cloaking betas like `context-management-2025-06-27`. The body would still contain `context_management` but the API rejects it as `Extra inputs` without the corresponding beta.
+
+Now all essential betas are force-appended when missing from client-supplied headers:
+
+| Beta | Purpose |
+|:-----|:--------|
+| `claude-code-20250219` | Claude Code identity |
+| `oauth-2025-04-20` | OAuth token support |
+| `interleaved-thinking-2025-05-14` | Thinking blocks in responses |
+| `context-management-2025-06-27` | Server-side context management |
+| `prompt-caching-scope-2026-01-05` | Prompt caching scope |
+
+Each beta's distinguishing prefix is checked (e.g., `context-management`) to avoid duplicates when the client already includes a matching beta.
+
+**File:** `internal/runtime/executor/claude_executor.go`
+
+### 1M Context Window Support
+
+The `X-CPA-CLAUDE-1M` request header enables the 1M token context window for Claude models. When present, the `context-1m-2025-08-07` beta is auto-appended to the `Anthropic-Beta` header, allowing clients to opt into extended context without manually managing beta flags.
+
+**File:** `internal/runtime/executor/claude_executor.go`
 
 ### Quota Threshold Fallback
 
@@ -529,10 +575,11 @@ Supports `--json` flag for machine-readable output.
 
 GitHub Actions workflow (`.github/workflows/sync-and-build.yml`):
 
-- Hourly upstream sync via cron (`0 */1 * * *`)
-- Multi-arch Docker build (`linux/amd64`, `linux/arm64`)
+- 12-hour upstream sync via cron (`0 */12 * * *`)
+- Single-arch Docker build (`linux/amd64`)
 - Auto-publish to DockerHub: `anilcancakir/cli-proxy-api-plus`
 - Triggers on: push to main, patch changes, Go file changes
+- Upstream merge conflicts fail the build (`exit 1`) for manual resolution instead of silent skipping
 
 ### Dockerfile Patch Mechanism
 
@@ -575,6 +622,8 @@ Additional test files not present in upstream:
 | `internal/auth/antigravity/rate_limiter_test.go` | Rate limiter: reason-based backoff, model isolation |
 | `internal/auth/antigravity/integration_test.go` | End-to-end quota + rate limiter integration |
 | `internal/runtime/executor/claude_executor_test.go` | Cloaking, prompt cache injection, user ID, quota threshold |
+| `internal/runtime/executor/billing_header_test.go` | Billing header determinism, `extractCharWithFallback`, JS `undefined` quirk |
+| `internal/runtime/executor/thinking_signature_test.go` | Thinking block cache_control guard, `context_management` structure |
 
 ---
 
@@ -589,3 +638,5 @@ Additional test files not present in upstream:
 | Kilo provider, cliproxyctl, TUI | [KooshaPari](https://github.com/KooshaPari/cliproxyapi-plusplus) | — |
 | Antigravity quota tracking | original (this fork) | — |
 | Claude quota threshold fallback | original (this fork) | — |
+| Thinking signature stability (Claude provider) | original (this fork) | — |
+| Beta header resilience, 1M context | original (this fork) | — |
