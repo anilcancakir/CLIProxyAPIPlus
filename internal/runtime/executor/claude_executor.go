@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -219,22 +218,17 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	// based on client type and configuration.
 	body = applyCloaking(ctx, e.cfg, auth, body, baseModel, apiKey)
 
-	// Inject context_management to let Anthropic server manage thinking blocks across turns.
-	contextMgmt := map[string]interface{}{
-		"edits": []map[string]interface{}{
-			{
-				"type": "clear_thinking_20251015",
-				"keep": "all",
-			},
-		},
-	}
-	body, _ = sjson.SetBytes(body, "context_management", contextMgmt)
 
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
 
 	// Disable thinking if tool_choice forces tool use (Anthropic API constraint)
 	body = disableThinkingIfToolChoiceForced(body)
+
+	// Inject context_management only when thinking is enabled/adaptive.
+	// clear_thinking_20251015 requires thinking to be active — injecting it
+	// on non-thinking requests causes Anthropic to reject with 400.
+	body = injectContextManagementIfThinking(body)
 
 	// Auto-inject cache_control if missing (optimization for ClawdBot/clients without caching support)
 	if countCacheControls(body) == 0 {
@@ -406,22 +400,15 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	// based on client type and configuration.
 	body = applyCloaking(ctx, e.cfg, auth, body, baseModel, apiKey)
 
-	// Inject context_management to let Anthropic server manage thinking blocks across turns.
-	contextMgmt := map[string]interface{}{
-		"edits": []map[string]interface{}{
-			{
-				"type": "clear_thinking_20251015",
-				"keep": "all",
-			},
-		},
-	}
-	body, _ = sjson.SetBytes(body, "context_management", contextMgmt)
 
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
 
 	// Disable thinking if tool_choice forces tool use (Anthropic API constraint)
 	body = disableThinkingIfToolChoiceForced(body)
+
+	// Inject context_management only when thinking is enabled/adaptive.
+	body = injectContextManagementIfThinking(body)
 
 	// Auto-inject cache_control if missing (optimization for ClawdBot/clients without caching support)
 	if countCacheControls(body) == 0 {
@@ -761,6 +748,29 @@ func disableThinkingIfToolChoiceForced(body []byte) []byte {
 	return body
 }
 
+// injectContextManagementIfThinking conditionally injects context_management into the
+// request body. The clear_thinking_20251015 strategy requires thinking to be enabled
+// or adaptive — injecting it unconditionally causes Anthropic to reject with 400.
+//
+// Must be called AFTER disableThinkingIfToolChoiceForced so that the check reflects
+// the final thinking state.
+func injectContextManagementIfThinking(body []byte) []byte {
+	thinkingType := gjson.GetBytes(body, "thinking.type").String()
+	if thinkingType != "enabled" && thinkingType != "adaptive" {
+		return body
+	}
+	contextMgmt := map[string]interface{}{
+		"edits": []map[string]interface{}{
+			{
+				"type": "clear_thinking_20251015",
+				"keep": "all",
+			},
+		},
+	}
+	body, _ = sjson.SetBytes(body, "context_management", contextMgmt)
+	return body
+}
+
 type compositeReadCloser struct {
 	io.Reader
 	closers []func() error
@@ -902,11 +912,20 @@ func applyClaudeHeaders(r *http.Request, auth *cliproxyauth.Auth, apiKey string,
 	baseBetas := "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05"
 	if val := strings.TrimSpace(ginHeaders.Get("Anthropic-Beta")); val != "" {
 		baseBetas = val
-		if !strings.Contains(val, "oauth") {
-			baseBetas += ",oauth-2025-04-20"
+		// Force-append essential cloaking betas that must survive client override.
+		essentialBetas := []string{
+			"claude-code-20250219",
+			"oauth-2025-04-20",
+			"interleaved-thinking-2025-05-14",
+			"context-management-2025-06-27",
+			"prompt-caching-scope-2026-01-05",
 		}
-		if !strings.Contains(val, "context-management") {
-			baseBetas += ",context-management-2025-06-27"
+		for _, beta := range essentialBetas {
+			// Check the distinguishing prefix (e.g. "oauth", "context-management").
+			prefix := beta[:strings.LastIndex(beta, "-")]
+			if !strings.Contains(val, prefix) {
+				baseBetas += "," + beta
+			}
 		}
 	}
 	hasClaude1MHeader := false
@@ -1530,178 +1549,26 @@ func countCacheControls(payload []byte) int {
 	return count
 }
 
-func parsePayloadObject(payload []byte) (map[string]any, bool) {
-	if len(payload) == 0 {
-		return nil, false
+
+// normalizeTTLForBlockGJSON checks a single cache_control block at the given gjson path.
+// If a 5m-TTL (or no-TTL) block has already been seen, any 1h-TTL block is downgraded
+// by removing its ttl field.
+func normalizeTTLForBlockGJSON(payload []byte, ccPath string, seen5m *bool) []byte {
+	cc := gjson.GetBytes(payload, ccPath)
+	if !cc.Exists() {
+		return payload
 	}
-	var root map[string]any
-	if err := json.Unmarshal(payload, &root); err != nil {
-		return nil, false
-	}
-	return root, true
-}
-
-func marshalPayloadObject(original []byte, root map[string]any) []byte {
-	if root == nil {
-		return original
-	}
-	out, err := json.Marshal(root)
-	if err != nil {
-		return original
-	}
-	return out
-}
-
-func asObject(v any) (map[string]any, bool) {
-	obj, ok := v.(map[string]any)
-	return obj, ok
-}
-
-func asArray(v any) ([]any, bool) {
-	arr, ok := v.([]any)
-	return arr, ok
-}
-
-func countCacheControlsMap(root map[string]any) int {
-	count := 0
-
-	if system, ok := asArray(root["system"]); ok {
-		for _, item := range system {
-			if obj, ok := asObject(item); ok {
-				if _, exists := obj["cache_control"]; exists {
-					count++
-				}
-			}
-		}
-	}
-
-	if tools, ok := asArray(root["tools"]); ok {
-		for _, item := range tools {
-			if obj, ok := asObject(item); ok {
-				if _, exists := obj["cache_control"]; exists {
-					count++
-				}
-			}
-		}
-	}
-
-	if messages, ok := asArray(root["messages"]); ok {
-		for _, msg := range messages {
-			msgObj, ok := asObject(msg)
-			if !ok {
-				continue
-			}
-			content, ok := asArray(msgObj["content"])
-			if !ok {
-				continue
-			}
-			for _, item := range content {
-				if obj, ok := asObject(item); ok {
-					if _, exists := obj["cache_control"]; exists {
-						count++
-					}
-				}
-			}
-		}
-	}
-
-	return count
-}
-
-func normalizeTTLForBlock(obj map[string]any, seen5m *bool) {
-	ccRaw, exists := obj["cache_control"]
-	if !exists {
-		return
-	}
-	cc, ok := asObject(ccRaw)
-	if !ok {
+	ttl := gjson.GetBytes(payload, ccPath+".ttl").String()
+	if ttl != "1h" {
+		// No TTL or non-1h TTL → treat as 5m (the default).
 		*seen5m = true
-		return
+		return payload
 	}
-	ttlRaw, ttlExists := cc["ttl"]
-	ttl, ttlIsString := ttlRaw.(string)
-	if !ttlExists || !ttlIsString || ttl != "1h" {
-		*seen5m = true
-		return
-	}
+	// TTL is 1h — downgrade to default if a 5m block was already seen.
 	if *seen5m {
-		delete(cc, "ttl")
+		payload, _ = sjson.DeleteBytes(payload, ccPath+".ttl")
 	}
-}
-
-func findLastCacheControlIndex(arr []any) int {
-	last := -1
-	for idx, item := range arr {
-		obj, ok := asObject(item)
-		if !ok {
-			continue
-		}
-		if _, exists := obj["cache_control"]; exists {
-			last = idx
-		}
-	}
-	return last
-}
-
-func stripCacheControlExceptIndex(arr []any, preserveIdx int, excess *int) {
-	for idx, item := range arr {
-		if *excess <= 0 {
-			return
-		}
-		obj, ok := asObject(item)
-		if !ok {
-			continue
-		}
-		if _, exists := obj["cache_control"]; exists && idx != preserveIdx {
-			delete(obj, "cache_control")
-			*excess--
-		}
-	}
-}
-
-func stripAllCacheControl(arr []any, excess *int) {
-	for _, item := range arr {
-		if *excess <= 0 {
-			return
-		}
-		obj, ok := asObject(item)
-		if !ok {
-			continue
-		}
-		if _, exists := obj["cache_control"]; exists {
-			delete(obj, "cache_control")
-			*excess--
-		}
-	}
-}
-
-func stripMessageCacheControl(messages []any, excess *int) {
-	for _, msg := range messages {
-		if *excess <= 0 {
-			return
-		}
-		msgObj, ok := asObject(msg)
-		if !ok {
-			continue
-		}
-		content, ok := asArray(msgObj["content"])
-		if !ok {
-			continue
-		}
-		for _, item := range content {
-			if *excess <= 0 {
-				return
-			}
-			obj, ok := asObject(item)
-			if !ok {
-				continue
-			}
-			if _, exists := obj["cache_control"]; exists {
-				delete(obj, "cache_control")
-				*excess--
-			}
-		}
-	}
+	return payload
 }
 
 // normalizeCacheControlTTL ensures cache_control TTL values don't violate the
@@ -1716,48 +1583,42 @@ func stripMessageCacheControl(messages []any, excess *int) {
 // Strategy: walk all cache_control blocks in evaluation order. Once a 5m block
 // is seen, strip ttl from ALL subsequent 1h blocks (downgrading them to 5m).
 func normalizeCacheControlTTL(payload []byte) []byte {
-	root, ok := parsePayloadObject(payload)
-	if !ok {
-		return payload
-	}
-
 	seen5m := false
 
-	if tools, ok := asArray(root["tools"]); ok {
-		for _, tool := range tools {
-			if obj, ok := asObject(tool); ok {
-				normalizeTTLForBlock(obj, &seen5m)
-			}
+	// 1. Walk tools in evaluation order.
+	tools := gjson.GetBytes(payload, "tools")
+	if tools.IsArray() {
+		for i := 0; i < int(tools.Get("#").Int()); i++ {
+			ccPath := fmt.Sprintf("tools.%d.cache_control", i)
+			payload = normalizeTTLForBlockGJSON(payload, ccPath, &seen5m)
 		}
 	}
 
-	if system, ok := asArray(root["system"]); ok {
-		for _, item := range system {
-			if obj, ok := asObject(item); ok {
-				normalizeTTLForBlock(obj, &seen5m)
-			}
+	// 2. Walk system blocks in evaluation order.
+	system := gjson.GetBytes(payload, "system")
+	if system.IsArray() {
+		for i := 0; i < int(system.Get("#").Int()); i++ {
+			ccPath := fmt.Sprintf("system.%d.cache_control", i)
+			payload = normalizeTTLForBlockGJSON(payload, ccPath, &seen5m)
 		}
 	}
 
-	if messages, ok := asArray(root["messages"]); ok {
-		for _, msg := range messages {
-			msgObj, ok := asObject(msg)
-			if !ok {
+	// 3. Walk message content blocks in evaluation order.
+	messages := gjson.GetBytes(payload, "messages")
+	if messages.IsArray() {
+		for mi := 0; mi < int(messages.Get("#").Int()); mi++ {
+			content := gjson.GetBytes(payload, fmt.Sprintf("messages.%d.content", mi))
+			if !content.IsArray() {
 				continue
 			}
-			content, ok := asArray(msgObj["content"])
-			if !ok {
-				continue
-			}
-			for _, item := range content {
-				if obj, ok := asObject(item); ok {
-					normalizeTTLForBlock(obj, &seen5m)
-				}
+			for ci := 0; ci < int(content.Get("#").Int()); ci++ {
+				ccPath := fmt.Sprintf("messages.%d.content.%d.cache_control", mi, ci)
+				payload = normalizeTTLForBlockGJSON(payload, ccPath, &seen5m)
 			}
 		}
 	}
 
-	return marshalPayloadObject(payload, root)
+	return payload
 }
 
 // enforceCacheControlLimit removes excess cache_control blocks from a payload
@@ -1777,64 +1638,104 @@ func normalizeCacheControlTTL(payload []byte) []byte {
 //	Phase 4: remaining system blocks (last system).
 //	Phase 5: remaining tool blocks (last tool).
 func enforceCacheControlLimit(payload []byte, maxBlocks int) []byte {
-	root, ok := parsePayloadObject(payload)
-	if !ok {
-		return payload
-	}
-
-	total := countCacheControlsMap(root)
+	total := countCacheControls(payload)
 	if total <= maxBlocks {
 		return payload
 	}
-
 	excess := total - maxBlocks
 
-	var system []any
-	if arr, ok := asArray(root["system"]); ok {
-		system = arr
-	}
-	var tools []any
-	if arr, ok := asArray(root["tools"]); ok {
-		tools = arr
-	}
-	var messages []any
-	if arr, ok := asArray(root["messages"]); ok {
-		messages = arr
+	// 1. Collect all cache_control paths grouped by section for phased removal.
+	type ccEntry struct {
+		path string // e.g. "system.2.cache_control" or "messages.1.content.0.cache_control"
 	}
 
-	if len(system) > 0 {
-		stripCacheControlExceptIndex(system, findLastCacheControlIndex(system), &excess)
+	var systemPaths []ccEntry
+	var toolPaths []ccEntry
+	var messagePaths []ccEntry
+
+	system := gjson.GetBytes(payload, "system")
+	if system.IsArray() {
+		for i := 0; i < int(system.Get("#").Int()); i++ {
+			p := fmt.Sprintf("system.%d.cache_control", i)
+			if gjson.GetBytes(payload, p).Exists() {
+				systemPaths = append(systemPaths, ccEntry{path: p})
+			}
+		}
+	}
+
+	tools := gjson.GetBytes(payload, "tools")
+	if tools.IsArray() {
+		for i := 0; i < int(tools.Get("#").Int()); i++ {
+			p := fmt.Sprintf("tools.%d.cache_control", i)
+			if gjson.GetBytes(payload, p).Exists() {
+				toolPaths = append(toolPaths, ccEntry{path: p})
+			}
+		}
+	}
+
+	messages := gjson.GetBytes(payload, "messages")
+	if messages.IsArray() {
+		for mi := 0; mi < int(messages.Get("#").Int()); mi++ {
+			content := gjson.GetBytes(payload, fmt.Sprintf("messages.%d.content", mi))
+			if !content.IsArray() {
+				continue
+			}
+			for ci := 0; ci < int(content.Get("#").Int()); ci++ {
+				p := fmt.Sprintf("messages.%d.content.%d.cache_control", mi, ci)
+				if gjson.GetBytes(payload, p).Exists() {
+					messagePaths = append(messagePaths, ccEntry{path: p})
+				}
+			}
+		}
+	}
+
+	// Helper: delete paths from payload, respecting excess budget.
+	deleteExcess := func(paths []ccEntry) {
+		for _, entry := range paths {
+			if excess <= 0 {
+				return
+			}
+			payload, _ = sjson.DeleteBytes(payload, entry.path)
+			excess--
+		}
+	}
+
+	// Phase 1: system blocks earliest-first, preserving the last one.
+	if len(systemPaths) > 1 {
+		deleteExcess(systemPaths[:len(systemPaths)-1])
 	}
 	if excess <= 0 {
-		return marshalPayloadObject(payload, root)
+		return payload
 	}
 
-	if len(tools) > 0 {
-		stripCacheControlExceptIndex(tools, findLastCacheControlIndex(tools), &excess)
+	// Phase 2: tool blocks earliest-first, preserving the last one.
+	if len(toolPaths) > 1 {
+		deleteExcess(toolPaths[:len(toolPaths)-1])
 	}
 	if excess <= 0 {
-		return marshalPayloadObject(payload, root)
+		return payload
 	}
 
-	if len(messages) > 0 {
-		stripMessageCacheControl(messages, &excess)
+	// Phase 3: message content blocks earliest-first.
+	deleteExcess(messagePaths)
+	if excess <= 0 {
+		return payload
+	}
+
+	// Phase 4: remaining system blocks (last system).
+	if len(systemPaths) > 0 {
+		deleteExcess(systemPaths[len(systemPaths)-1:])
 	}
 	if excess <= 0 {
-		return marshalPayloadObject(payload, root)
+		return payload
 	}
 
-	if len(system) > 0 {
-		stripAllCacheControl(system, &excess)
-	}
-	if excess <= 0 {
-		return marshalPayloadObject(payload, root)
+	// Phase 5: remaining tool blocks (last tool).
+	if len(toolPaths) > 0 {
+		deleteExcess(toolPaths[len(toolPaths)-1:])
 	}
 
-	if len(tools) > 0 {
-		stripAllCacheControl(tools, &excess)
-	}
-
-	return marshalPayloadObject(payload, root)
+	return payload
 }
 
 // injectMessagesCacheControl adds cache_control to the second-to-last user turn for multi-turn caching.
