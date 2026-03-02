@@ -5,7 +5,10 @@ package usage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -469,4 +472,89 @@ func formatHour(hour int) string {
 	}
 	hour = hour % 24
 	return fmt.Sprintf("%02d", hour)
+}
+
+var (
+	persistenceMutex sync.Mutex
+	persistencePath  string
+	autoSaveTicker   *time.Ticker
+	autoSaveDone     chan struct{}
+)
+
+// InitPersistence enables automatic loading and periodic saving of usage statistics.
+// It should be called after the configuration is loaded.
+func InitPersistence(dir string) error {
+	persistenceMutex.Lock()
+	defer persistenceMutex.Unlock()
+
+	// If already running, stop it
+	if autoSaveDone != nil {
+		close(autoSaveDone)
+		autoSaveTicker.Stop()
+		autoSaveDone = nil
+	}
+
+	if dir == "" {
+		return fmt.Errorf("persistence directory cannot be empty")
+	}
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create persistence directory: %w", err)
+	}
+
+	persistencePath = filepath.Join(dir, "usage_stats.json")
+
+	// Try to load existing stats
+	if data, err := os.ReadFile(persistencePath); err == nil {
+		var snapshot StatisticsSnapshot
+		if err := json.Unmarshal(data, &snapshot); err == nil {
+			defaultRequestStatistics.MergeSnapshot(snapshot)
+		}
+	}
+
+	// Start auto-save loop (e.g., every 5 minutes)
+	autoSaveTicker = time.NewTicker(5 * time.Minute)
+	autoSaveDone = make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			case <-autoSaveTicker.C:
+				savePersistence()
+			case <-autoSaveDone:
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
+// StopPersistence gracefully stops the auto-save loop and performs a final save.
+func StopPersistence() {
+	persistenceMutex.Lock()
+	defer persistenceMutex.Unlock()
+
+	if autoSaveDone != nil {
+		close(autoSaveDone)
+		autoSaveTicker.Stop()
+		autoSaveDone = nil
+	}
+	savePersistence()
+}
+
+func savePersistence() {
+	if persistencePath == "" {
+		return
+	}
+	snapshot := defaultRequestStatistics.Snapshot()
+	data, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		return
+	}
+	tmpPath := persistencePath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+		return
+	}
+	_ = os.Rename(tmpPath, persistencePath)
 }

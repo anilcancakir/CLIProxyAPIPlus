@@ -12,6 +12,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/api"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/usage"
 	"github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy"
 	log "github.com/sirupsen/logrus"
 )
@@ -43,6 +44,11 @@ func StartService(cfg *config.Config, configPath string, localPassword string) {
 		}))
 	}
 
+	if err := usage.InitPersistence(cfg.AuthDir); err != nil {
+		log.Warnf("failed to init usage persistence: %v", err)
+	}
+	defer usage.StopPersistence()
+
 	service, err := builder.Build()
 	if err != nil {
 		log.Errorf("failed to build proxy service: %v", err)
@@ -66,15 +72,21 @@ func StartServiceBackground(cfg *config.Config, configPath string, localPassword
 	ctx, cancelFn := context.WithCancel(context.Background())
 	doneCh := make(chan struct{})
 
+	if err := usage.InitPersistence(cfg.AuthDir); err != nil {
+		log.Warnf("failed to init usage persistence: %v", err)
+	}
+
 	service, err := builder.Build()
 	if err != nil {
 		log.Errorf("failed to build proxy service: %v", err)
 		close(doneCh)
+		usage.StopPersistence()
 		return cancelFn, doneCh
 	}
 
 	go func() {
 		defer close(doneCh)
+		defer usage.StopPersistence()
 		if err := service.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Errorf("proxy service exited with error: %v", err)
 		}
