@@ -11,15 +11,14 @@ The fork stays in sync with upstream via automated 12-hour sync and amd64 Docker
 
 ## What's Different
 
-### Copilot — Claude & GPT-5 Routing
+### Copilot — GPT-5 Routing
 
-Tri-state endpoint routing enables Claude and GPT-5 models through GitHub Copilot:
+Dual-state endpoint routing for GitHub Copilot models:
 
-- **Claude** (Sonnet, Opus) → `/v1/messages` with native Anthropic format
 - **GPT-5 / Codex** → `/responses` with Responses API format
-- **Legacy** (GPT-4o, etc.) → `/chat/completions` with OpenAI format
+- **All other models** (Claude, GPT-4o, etc.) → `/chat/completions` with OpenAI format
 
-Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/machine IDs) for unlimited premium access. Thinking budgets are auto-configured for Sonnet 3.7+ models.
+Claude models are routed through the standard OpenAI-format translation path — the proxy handles format conversion automatically. Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/machine IDs) for unlimited premium access.
 
 ### Antigravity — Anti-Fingerprinting
 
@@ -175,7 +174,7 @@ cliproxyctl doctor --json  # machine-readable output
 
 This fork incorporates work from:
 
-- [lemon07r/CLIProxyAPIPlus](https://github.com/lemon07r/CLIProxyAPIPlus) — Copilot Claude routing, anti-fingerprinting, translator fixes
+- [lemon07r/CLIProxyAPIPlus](https://github.com/lemon07r/CLIProxyAPIPlus) — Copilot GPT-5 routing, anti-fingerprinting, translator fixes
 - [KooshaPari/cliproxyapi-plusplus](https://github.com/KooshaPari/cliproxyapi-plusplus) — SDK enhancements, sticky routing, Kilo provider, CLI tooling
 - [em4go](https://github.com/em4go/CLIProxyAPI/tree/feature/github-copilot-auth) — Original GitHub Copilot OAuth
 - [fuko2935](https://github.com/fuko2935/CLIProxyAPI/tree/feature/kiro-integration), [Ravens2121](https://github.com/Ravens2121/CLIProxyAPIPlus/) — Kiro integration

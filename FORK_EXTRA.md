@@ -4,22 +4,23 @@ This document tracks all features unique to the [anilcancakir/CLIProxyAPIPlus](h
 
 > [!NOTE]
 > This fork merges improvements from two community forks:
-> - [lemon07r/CLIProxyAPIPlus](https://github.com/lemon07r/CLIProxyAPIPlus) — Copilot Claude routing, Antigravity anti-fingerprinting, translator fixes
+> - [lemon07r/CLIProxyAPIPlus](https://github.com/lemon07r/CLIProxyAPIPlus) — Copilot GPT-5 routing, Antigravity anti-fingerprinting, translator fixes
 > - [KooshaPari/cliproxyapi-plusplus](https://github.com/KooshaPari/cliproxyapi-plusplus) — SDK enhancements, sticky routing, fallback models, CLI tooling
 
 ---
 
-## GitHub Copilot — Claude & GPT-5 Support
+## GitHub Copilot — GPT-5 Support
 
-Tri-state endpoint routing enables Claude and GPT-5 models through GitHub Copilot:
+Dual-state endpoint routing for GitHub Copilot models:
 
 | Model Type | Endpoint | Format |
 |:-----------|:---------|:-------|
-| Claude (Sonnet, Opus) | `/v1/messages` | Native Anthropic |
 | GPT-5 / Codex | `/responses` | Responses API |
-| Legacy (GPT-4o, etc.) | `/chat/completions` | OpenAI |
+| All other models (Claude, GPT-4o, etc.) | `/chat/completions` | OpenAI |
 
-Key functions: `isCopilotClaudeModel()`, `isGPT5Model()`, `getEndpointPath()`
+Claude models are routed through the standard OpenAI-format translation path — the proxy handles format conversion automatically via the existing translator layer.
+
+Key functions: `isGPT5Model()`, `useGitHubCopilotResponsesEndpoint()`
 
 ### Unlimited Premium Access
 
@@ -29,10 +30,6 @@ Headers are configured to match the official VS Code Copilot agent:
 - `X-Github-Api-Version: 2025-10-01`
 - Dynamic `VScode-SessionId` and `VScode-MachineId` per request
 - `copilot-chat/0.37.2026013101` plugin version
-
-### Claude Thinking Budget
-
-`normalizeCopilotClaudeThinking()` automatically configures thinking budgets for Sonnet 3.7+ models, with `anthropic-beta` header injection for interleaved thinking support.
 
 ### SDK Prefix Handling
 
@@ -633,7 +630,7 @@ Additional test files not present in upstream:
 
 | Feature Set | Source Fork | Patches |
 |:------------|:-----------|:--------|
-| Copilot Claude/GPT-5 routing | [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) | 001, 002, 007 |
+| Copilot GPT-5 routing | [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) | 001, 002, 007 |
 | Antigravity anti-fingerprinting | [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) | 006 |
 | Thinking signature & translator fixes | [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) | 003, 004, 005, 008 |
 | SDK routing, fallbacks, sanitization | [KooshaPari](https://github.com/KooshaPari/cliproxyapi-plusplus) | — |
