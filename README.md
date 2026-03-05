@@ -11,7 +11,7 @@ The fork stays in sync with upstream via automated 12-hour sync and amd64 Docker
 
 ## What's Different
 
-[![z.ai](https://assets.router-for.me/english-5.png)](https://z.ai/subscribe?ic=8JVLJQFSKB)
+[![z.ai](https://assets.router-for.me/english-5-0.jpg)](https://z.ai/subscribe?ic=8JVLJQFSKB)
 
 ### Copilot — GPT-5 Routing
 
