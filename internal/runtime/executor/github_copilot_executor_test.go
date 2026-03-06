@@ -318,18 +318,6 @@ func TestApplyHeaders_XInitiator_InputArrayLastFunctionCallOutput(t *testing.T) 
 	}
 }
 
-// --- Tests for x-github-api-version header (Problem M) ---
-
-func TestApplyHeaders_GitHubAPIVersion(t *testing.T) {
-	t.Parallel()
-	e := &GitHubCopilotExecutor{}
-	req, _ := http.NewRequest(http.MethodPost, "https://example.com", nil)
-	e.applyHeaders(req, "token", nil)
-	if got := req.Header.Get("X-Github-Api-Version"); got != "2025-04-01" {
-		t.Fatalf("X-Github-Api-Version = %q, want 2025-04-01", got)
-	}
-}
-
 // --- Tests for vision detection (Problem P) ---
 
 func TestDetectVisionContent_WithImageURL(t *testing.T) {

@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	// copilotClientID is GitHub's Copilot CLI OAuth client ID.
-	copilotClientID = "Iv1.b507a08c87ecfe98"
+	// copilotClientID is OpenCode's GitHub Copilot OAuth client ID.
+	copilotClientID = "Ov23li8tweQw6odWQebz"
 	// copilotDeviceCodeURL is the endpoint for requesting device codes.
 	copilotDeviceCodeURL = "https://github.com/login/device/code"
 	// copilotTokenURL is the endpoint for exchanging device codes for tokens.
@@ -53,7 +53,7 @@ func NewDeviceFlowClient(cfg *config.Config) *DeviceFlowClient {
 func (c *DeviceFlowClient) RequestDeviceCode(ctx context.Context) (*DeviceCodeResponse, error) {
 	data := url.Values{}
 	data.Set("client_id", copilotClientID)
-	data.Set("scope", "read:user user:email")
+	data.Set("scope", "read:user")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, copilotDeviceCodeURL, strings.NewReader(data.Encode()))
 	if err != nil {
