@@ -55,6 +55,7 @@ Claude models are routed through the standard OpenAI-format translation path —
 - Consecutive same-role turn merging for Gemini
 - Streaming tool call deltas in Claude-to-OpenAI translation
 - Assistant prefill handling for Gemini models
+- `reasoning_text` → `thinking` block conversion for Copilot/Gemini models in OpenAI-to-Claude translation
 
 ### SDK Enhancements
 

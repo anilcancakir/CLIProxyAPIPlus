@@ -159,8 +159,11 @@ func convertOpenAIStreamingChunkToAnthropic(rawJSON []byte, param *ConvertOpenAI
 			// Don't send content_block_start for text here - wait for actual content
 		}
 
-		// Handle reasoning content delta
-		if reasoning := delta.Get("reasoning_content"); reasoning.Exists() {
+		reasoning := delta.Get("reasoning_content")
+		if !reasoning.Exists() {
+			reasoning = delta.Get("reasoning_text")
+		}
+		if reasoning.Exists() {
 			for _, reasoningText := range collectOpenAIReasoningTexts(reasoning) {
 				if reasoningText == "" {
 					continue
@@ -394,6 +397,9 @@ func convertOpenAINonStreamingToAnthropic(rawJSON []byte) []string {
 		choice := choices.Array()[0] // Take first choice
 
 		reasoningNode := choice.Get("message.reasoning_content")
+		if !reasoningNode.Exists() {
+			reasoningNode = choice.Get("message.reasoning_text")
+		}
 		for _, reasoningText := range collectOpenAIReasoningTexts(reasoningNode) {
 			if reasoningText == "" {
 				continue
@@ -574,6 +580,22 @@ func ConvertOpenAIResponseToClaudeNonStream(_ context.Context, _ string, origina
 		}
 
 		if message := choice.Get("message"); message.Exists() {
+			// Emit reasoning/thinking blocks before text content (Claude ordering).
+			reasoningNode := message.Get("reasoning_content")
+			if !reasoningNode.Exists() {
+				reasoningNode = message.Get("reasoning_text")
+			}
+			if reasoningNode.Exists() {
+				for _, reasoningText := range collectOpenAIReasoningTexts(reasoningNode) {
+					if reasoningText == "" {
+						continue
+					}
+					block := `{"type":"thinking","thinking":""}`
+					block, _ = sjson.Set(block, "thinking", reasoningText)
+					out, _ = sjson.SetRaw(out, "content.-1", block)
+				}
+			}
+
 			if contentResult := message.Get("content"); contentResult.Exists() {
 				if contentResult.IsArray() {
 					var textBuilder strings.Builder
@@ -651,17 +673,6 @@ func ConvertOpenAIResponseToClaudeNonStream(_ context.Context, _ string, origina
 						block, _ = sjson.Set(block, "text", textContent)
 						out, _ = sjson.SetRaw(out, "content.-1", block)
 					}
-				}
-			}
-
-			if reasoning := message.Get("reasoning_content"); reasoning.Exists() {
-				for _, reasoningText := range collectOpenAIReasoningTexts(reasoning) {
-					if reasoningText == "" {
-						continue
-					}
-					block := `{"type":"thinking","thinking":""}`
-					block, _ = sjson.Set(block, "thinking", reasoningText)
-					out, _ = sjson.SetRaw(out, "content.-1", block)
 				}
 			}
 

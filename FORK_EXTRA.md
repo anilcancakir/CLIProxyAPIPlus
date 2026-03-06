@@ -416,6 +416,20 @@ The Claude-to-OpenAI response translator now supports real-time `tool_use` and `
 **Source:** Lemon fork patches 003, 004, 005, 008
 **Files:** `internal/translator/claude/openai/chat-completions/claude_openai_response.go`
 
+### Reasoning Text → Thinking Block (OpenAI → Claude)
+
+The OpenAI-to-Claude response translator now converts `reasoning_text` (Copilot/Gemini format) to Claude `thinking` content blocks. The upstream translator only handled `reasoning_content` (standard OpenAI field) — Copilot returns Gemini reasoning via the `reasoning_text` field, which was silently dropped.
+
+Fixes applied to both streaming and non-streaming paths:
+
+| Path | Change |
+|:-----|:-------|
+| Non-stream (`convertOpenAINonStreamingToAnthropic`) | Fallback from `reasoning_content` to `reasoning_text` |
+| Stream (`convertOpenAIStreamingChunkToAnthropic`) | Fallback from `reasoning_content` to `reasoning_text` |
+| Non-stream (`ConvertOpenAIResponseToClaudeNonStream`) | Reasoning extraction moved before text content (Claude ordering) + `reasoning_text` fallback |
+
+**Files:** `internal/translator/openai/claude/openai_claude_response.go`, `internal/translator/openai/claude/openai_claude_response_test.go`
+
 ---
 
 ## SDK Enhancements
