@@ -13,14 +13,21 @@ The fork stays in sync with upstream via automated 12-hour sync and amd64 Docker
 
 [![z.ai](https://assets.router-for.me/english-5-0.jpg)](https://z.ai/subscribe?ic=8JVLJQFSKB)
 
-### Copilot — GPT-5 Routing
+### Copilot — OpenCode Client Integration
 
-Dual-state endpoint routing for GitHub Copilot models:
+Dual-state endpoint routing for GitHub Copilot models with **OpenCode-approved client** configuration:
 
 - **GPT-5 / Codex** → `/responses` with Responses API format
 - **All other models** (Claude, GPT-4o, etc.) → `/chat/completions` with OpenAI format
 
-Claude models are routed through the standard OpenAI-format translation path — the proxy handles format conversion automatically. Headers match the official VS Code agent (`X-Initiator: agent`, dynamic session/machine IDs) for unlimited premium access.
+Claude models are routed through the standard OpenAI-format translation path — the proxy handles format conversion automatically. The proxy uses OpenCode's official GitHub Client ID (`Ov23li8tweQw6odWQebz`) and simplified scope (`read:user`) for approved client status.
+
+**OpenCode Client Configuration:**
+- Client ID: `Ov23li8tweQw6odWQebz` (OpenCode's OAuth client)
+- User-Agent: `opencode/0.1.0` (OpenCode pattern)
+- OpenAI-Intent: `conversation-edits`
+- Dynamic X-Initiator header based on conversation role (agent/user)
+- Removed VSCode-specific headers for cleaner OpenCode compatibility
 
 ### Antigravity — Anti-Fingerprinting
 
@@ -83,7 +90,7 @@ User-controllable priority for OAuth providers and individual accounts:
 
 | Provider | Auth Method | Features |
 |:---------|:-----------|:---------|
-| GitHub Copilot | OAuth | Claude, GPT-5, Codex, Legacy models |
+| GitHub Copilot | OAuth (OpenCode) | Claude, GPT-5, Codex, approved client status |
 | Antigravity | Token | Anti-fingerprinting, dynamic versioning, quota tracking, priority |
 | Kiro (AWS) | OAuth | Web search, CodeWhisperer, priority |
 | Kilo AI | Device Flow | OpenRouter models, dynamic discovery |

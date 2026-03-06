@@ -9,9 +9,9 @@ This document tracks all features unique to the [anilcancakir/CLIProxyAPIPlus](h
 
 ---
 
-## GitHub Copilot — GPT-5 Support
+## GitHub Copilot — OpenCode Client Integration
 
-Dual-state endpoint routing for GitHub Copilot models:
+Dual-state endpoint routing for GitHub Copilot models with **OpenCode-approved client** configuration:
 
 | Model Type | Endpoint | Format |
 |:-----------|:---------|:-------|
@@ -22,14 +22,30 @@ Claude models are routed through the standard OpenAI-format translation path —
 
 Key functions: `isGPT5Model()`, `useGitHubCopilotResponsesEndpoint()`
 
+### OpenCode Client Configuration
+
+The proxy identifies itself as OpenCode (an approved GitHub Copilot client) to ensure compatibility:
+
+- **Client ID**: `Ov23li8tweQw6odWQebz` (OpenCode's official GitHub OAuth Client ID)
+- **User-Agent**: `opencode/0.1.0` (OpenCode pattern)
+- **OpenAI-Intent**: `conversation-edits` (OpenCode's intent value)
+- **Scope**: `read:user` (simplified from VS Code's broader scope)
+
 ### Unlimited Premium Access
 
-Headers are configured to match the official VS Code Copilot agent:
+Headers match OpenCode's approved client format:
 
-- `X-Initiator: agent` — always set for unlimited premium request access
-- `X-Github-Api-Version: 2025-10-01`
-- Dynamic `VScode-SessionId` and `VScode-MachineId` per request
-- `copilot-chat/0.37.2026013101` plugin version
+- `X-Initiator: agent` — dynamically set based on last conversation role (assistant/tool → agent, user → user)
+- `X-Initiator: user` — set when user initiated the last turn
+- `Accept: application/json`
+- `Content-Type: application/json`
+
+**Removed VSCode-specific headers** (no longer sent):
+- ~~`Editor-Version: vscode/1.107.0`~~
+- ~~`Editor-Plugin-Version: copilot-chat/0.35.0`~~
+- ~~`Copilot-Integration-Id: vscode-chat`~~
+- ~~`X-Github-Api-Version: 2025-04-01`~~
+- ~~`X-Request-Id: <uuid>`~~
 
 ### SDK Prefix Handling
 
@@ -38,8 +54,8 @@ Model names with `copilot-` prefix are automatically stripped in:
 - `sdk/api/handlers/openai/endpoint_compat.go` — registry lookup
 - `sdk/api/handlers/openai/openai_handlers.go` — responses routing
 
-**Source:** Lemon fork patches 001, 002, 007
-**Files:** `internal/runtime/executor/github_copilot_executor.go`, `sdk/api/handlers/openai/`
+**Source:** Lemon fork patches 001, 002, 007; OpenCode client migration (original)
+**Files:** `internal/runtime/executor/github_copilot_executor.go`, `internal/auth/copilot/oauth.go`, `sdk/api/handlers/openai/`
 
 ---
 
@@ -631,6 +647,7 @@ Additional test files not present in upstream:
 | Feature Set | Source Fork | Patches |
 |:------------|:-----------|:--------|
 | Copilot GPT-5 routing | [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) | 001, 002, 007 |
+| OpenCode client migration | original (this fork) | — |
 | Antigravity anti-fingerprinting | [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) | 006 |
 | Thinking signature & translator fixes | [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) | 003, 004, 005, 008 |
 | SDK routing, fallbacks, sanitization | [KooshaPari](https://github.com/KooshaPari/cliproxyapi-plusplus) | — |
