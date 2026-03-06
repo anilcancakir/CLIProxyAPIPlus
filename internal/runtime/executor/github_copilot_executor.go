@@ -28,7 +28,7 @@ const (
 	githubCopilotChatPath      = "/chat/completions"
 	githubCopilotResponsesPath = "/responses"
 	githubCopilotAuthType      = "github-copilot"
-	githubCopilotTokenCacheTTL = 25 * time.Minute
+	githubCopilotTokenCacheTTL = 24 * time.Hour
 	// tokenExpiryBuffer is the time before expiry when we should refresh the token.
 	tokenExpiryBuffer = 5 * time.Minute
 	// maxScannerBufferSize is the maximum buffer size for SSE scanning (20MB).
@@ -413,11 +413,13 @@ func (e *GitHubCopilotExecutor) Refresh(ctx context.Context, auth *cliproxyauth.
 		return auth, nil
 	}
 
-	// Validate the token can still get a Copilot API token
 	copilotAuth := copilotauth.NewCopilotAuth(e.cfg)
-	_, err := copilotAuth.GetCopilotAPIToken(ctx, accessToken)
+	isValid, _, err := copilotAuth.ValidateToken(ctx, accessToken)
 	if err != nil {
 		return nil, statusErr{code: http.StatusUnauthorized, msg: fmt.Sprintf("github-copilot token validation failed: %v", err)}
+	}
+	if !isValid {
+		return nil, statusErr{code: http.StatusUnauthorized, msg: "github-copilot token validation failed: invalid token"}
 	}
 
 	return auth, nil

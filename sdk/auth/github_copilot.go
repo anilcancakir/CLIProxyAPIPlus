@@ -72,11 +72,13 @@ func (a GitHubCopilotAuthenticator) Login(ctx context.Context, cfg *config.Confi
 		return nil, fmt.Errorf("github-copilot: %s", errMsg)
 	}
 
-	// Verify the token can get a Copilot API token
 	fmt.Println("Verifying Copilot access...")
-	apiToken, err := authSvc.GetCopilotAPIToken(ctx, authBundle.TokenData.AccessToken)
+	isValid, _, err := authSvc.ValidateToken(ctx, authBundle.TokenData.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("github-copilot: failed to verify Copilot access - you may not have an active Copilot subscription: %w", err)
+	}
+	if !isValid {
+		return nil, fmt.Errorf("github-copilot: failed to verify Copilot access")
 	}
 
 	// Create the token storage
@@ -92,10 +94,6 @@ func (a GitHubCopilotAuthenticator) Login(ctx context.Context, cfg *config.Confi
 		"token_type":   authBundle.TokenData.TokenType,
 		"scope":        authBundle.TokenData.Scope,
 		"timestamp":    time.Now().UnixMilli(),
-	}
-
-	if apiToken.ExpiresAt > 0 {
-		metadata["api_token_expires_at"] = apiToken.ExpiresAt
 	}
 
 	fileName := fmt.Sprintf("github-copilot-%s.json", authBundle.Username)
@@ -126,10 +124,12 @@ func RefreshGitHubCopilotToken(ctx context.Context, cfg *config.Config, storage 
 
 	authSvc := copilot.NewCopilotAuth(cfg)
 
-	// Validate the token can still get a Copilot API token
-	_, err := authSvc.GetCopilotAPIToken(ctx, storage.AccessToken)
+	isValid, _, err := authSvc.ValidateToken(ctx, storage.AccessToken)
 	if err != nil {
 		return fmt.Errorf("token validation failed: %w", err)
+	}
+	if !isValid {
+		return fmt.Errorf("token validation failed: invalid token")
 	}
 
 	return nil

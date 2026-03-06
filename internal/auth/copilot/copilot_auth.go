@@ -18,17 +18,12 @@ import (
 )
 
 const (
-	// copilotAPITokenURL is the endpoint for getting Copilot API tokens from GitHub token.
-	copilotAPITokenURL = "https://api.github.com/copilot_internal/v2/token"
 	// copilotAPIEndpoint is the base URL for making API requests.
 	copilotAPIEndpoint = "https://api.githubcopilot.com"
 
 	// Common HTTP header values for Copilot API requests.
-	copilotUserAgent       = "GithubCopilot/1.0"
-	copilotEditorVersion   = "vscode/1.100.0"
-	copilotPluginVersion   = "copilot/1.300.0"
-	copilotIntegrationID   = "vscode-chat"
-	copilotOpenAIIntent    = "conversation-panel"
+	copilotUserAgent    = "opencode/0.1.0"
+	copilotOpenAIIntent = "conversation-edits"
 )
 
 // CopilotAPIToken represents the Copilot API token response.
@@ -102,54 +97,22 @@ func (c *CopilotAuth) WaitForAuthorization(ctx context.Context, deviceCode *Devi
 	}, nil
 }
 
-// GetCopilotAPIToken exchanges a GitHub access token for a Copilot API token.
-// This token is used to make authenticated requests to the Copilot API.
+// GetCopilotAPIToken maps the GitHub OAuth access token to the Copilot API token shape.
+// OpenCode-style authentication uses the GitHub token directly as the Copilot bearer token.
 func (c *CopilotAuth) GetCopilotAPIToken(ctx context.Context, githubAccessToken string) (*CopilotAPIToken, error) {
+	_ = ctx
+
 	if githubAccessToken == "" {
 		return nil, NewAuthenticationError(ErrTokenExchangeFailed, fmt.Errorf("github access token is empty"))
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, copilotAPITokenURL, nil)
-	if err != nil {
-		return nil, NewAuthenticationError(ErrTokenExchangeFailed, err)
+	apiToken := &CopilotAPIToken{
+		Token:     githubAccessToken,
+		ExpiresAt: 0,
 	}
+	apiToken.Endpoints.API = ""
 
-	req.Header.Set("Authorization", "token "+githubAccessToken)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", copilotUserAgent)
-	req.Header.Set("Editor-Version", copilotEditorVersion)
-	req.Header.Set("Editor-Plugin-Version", copilotPluginVersion)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, NewAuthenticationError(ErrTokenExchangeFailed, err)
-	}
-	defer func() {
-		if errClose := resp.Body.Close(); errClose != nil {
-			log.Errorf("copilot api token: close body error: %v", errClose)
-		}
-	}()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, NewAuthenticationError(ErrTokenExchangeFailed, err)
-	}
-
-	if !isHTTPSuccess(resp.StatusCode) {
-		return nil, NewAuthenticationError(ErrTokenExchangeFailed,
-			fmt.Errorf("status %d: %s", resp.StatusCode, string(bodyBytes)))
-	}
-
-	var apiToken CopilotAPIToken
-	if err = json.Unmarshal(bodyBytes, &apiToken); err != nil {
-		return nil, NewAuthenticationError(ErrTokenExchangeFailed, err)
-	}
-
-	if apiToken.Token == "" {
-		return nil, NewAuthenticationError(ErrTokenExchangeFailed, fmt.Errorf("empty copilot api token"))
-	}
-
-	return &apiToken, nil
+	return apiToken, nil
 }
 
 // ValidateToken checks if a GitHub access token is valid by attempting to fetch user info.
@@ -186,15 +149,9 @@ func (c *CopilotAuth) LoadAndValidateToken(ctx context.Context, storage *Copilot
 		return false, fmt.Errorf("no token available")
 	}
 
-	// Check if we can still use the GitHub token to get a Copilot API token
-	apiToken, err := c.GetCopilotAPIToken(ctx, storage.AccessToken)
+	_, err := c.deviceClient.FetchUserInfo(ctx, storage.AccessToken)
 	if err != nil {
 		return false, err
-	}
-
-	// Check if the API token is expired
-	if apiToken.ExpiresAt > 0 && time.Now().Unix() >= apiToken.ExpiresAt {
-		return false, fmt.Errorf("copilot api token expired")
 	}
 
 	return true, nil
@@ -216,10 +173,8 @@ func (c *CopilotAuth) MakeAuthenticatedRequest(ctx context.Context, method, url 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", copilotUserAgent)
-	req.Header.Set("Editor-Version", copilotEditorVersion)
-	req.Header.Set("Editor-Plugin-Version", copilotPluginVersion)
 	req.Header.Set("Openai-Intent", copilotOpenAIIntent)
-	req.Header.Set("Copilot-Integration-Id", copilotIntegrationID)
+	req.Header.Set("X-Initiator", "user")
 
 	return req, nil
 }
@@ -246,14 +201,14 @@ const maxModelsResponseSize = 2 * 1024 * 1024
 
 // allowedCopilotAPIHosts is the set of hosts that are considered safe for Copilot API requests.
 var allowedCopilotAPIHosts = map[string]bool{
-	"api.githubcopilot.com":          true,
-	"api.individual.githubcopilot.com": true,
-	"api.business.githubcopilot.com":   true,
+	"api.githubcopilot.com":               true,
+	"api.individual.githubcopilot.com":    true,
+	"api.business.githubcopilot.com":      true,
 	"copilot-proxy.githubusercontent.com": true,
 }
 
 // ListModels fetches the list of available models from the Copilot API.
-// It requires a valid Copilot API token (not the GitHub access token).
+// It requires a valid bearer token for api.githubcopilot.com.
 func (c *CopilotAuth) ListModels(ctx context.Context, apiToken *CopilotAPIToken) ([]CopilotModelEntry, error) {
 	if apiToken == nil || apiToken.Token == "" {
 		return nil, fmt.Errorf("copilot: api token is required for listing models")
@@ -304,8 +259,8 @@ func (c *CopilotAuth) ListModels(ctx context.Context, apiToken *CopilotAPIToken)
 	return modelsResp.Data, nil
 }
 
-// ListModelsWithGitHubToken is a convenience method that exchanges a GitHub access token
-// for a Copilot API token and then fetches the available models.
+// ListModelsWithGitHubToken is a convenience method that resolves the API bearer token
+// from the GitHub access token and then fetches the available models.
 func (c *CopilotAuth) ListModelsWithGitHubToken(ctx context.Context, githubAccessToken string) ([]CopilotModelEntry, error) {
 	apiToken, err := c.GetCopilotAPIToken(ctx, githubAccessToken)
 	if err != nil {
