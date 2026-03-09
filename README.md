@@ -1,14 +1,3 @@
-# CLIProxyAPI Plus (anilcancakir fork)
-
-English | [Chinese](README_CN.md)
-
-This is an enhanced fork of [CLIProxyAPIPlus](https://github.com/router-for-me/CLIProxyAPIPlus), merging improvements from [lemon07r](https://github.com/lemon07r/CLIProxyAPIPlus) and [KooshaPari](https://github.com/KooshaPari/cliproxyapi-plusplus) forks on top of the mainline project.
-
-The fork stays in sync with upstream via automated 12-hour sync and amd64 Docker builds.
-
-> [!NOTE]
-> For a detailed breakdown of every fork-specific feature, see [FORK_EXTRA.md](FORK_EXTRA.md).
-
 ## What's Different
 
 [![z.ai](https://assets.router-for.me/english-5-0.jpg)](https://z.ai/subscribe?ic=8JVLJQFSKB)
@@ -189,12 +178,3 @@ This fork incorporates work from:
 - [em4go](https://github.com/em4go/CLIProxyAPI/tree/feature/github-copilot-auth) — Original GitHub Copilot OAuth
 - [fuko2935](https://github.com/fuko2935/CLIProxyAPI/tree/feature/kiro-integration), [Ravens2121](https://github.com/Ravens2121/CLIProxyAPIPlus/) — Kiro integration
 
-## Contributing
-
-This project only accepts pull requests that relate to third-party provider support. Any pull requests unrelated to third-party provider support will be rejected.
-
-If you need to submit any non-third-party provider changes, please open them against the [mainline](https://github.com/router-for-me/CLIProxyAPI) repository.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

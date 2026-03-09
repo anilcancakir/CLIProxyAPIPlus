@@ -1678,15 +1678,176 @@ func normalizeTTLForBlockGJSON(payload []byte, ccPath string, seen5m *bool) []by
 	if !cc.Exists() {
 		return payload
 	}
-	ttl := gjson.GetBytes(payload, ccPath+".ttl").String()
-	if ttl != "1h" {
-		// No TTL or non-1h TTL → treat as 5m (the default).
+	var root map[string]any
+	if err := json.Unmarshal(payload, &root); err != nil {
+		return nil, false
+	}
+	return root, true
+}
+
+func marshalPayloadObject(original []byte, root map[string]any) []byte {
+	if root == nil {
+		return original
+	}
+	out, err := json.Marshal(root)
+	if err != nil {
+		return original
+	}
+	return out
+}
+
+func asObject(v any) (map[string]any, bool) {
+	obj, ok := v.(map[string]any)
+	return obj, ok
+}
+
+func asArray(v any) ([]any, bool) {
+	arr, ok := v.([]any)
+	return arr, ok
+}
+
+func countCacheControlsMap(root map[string]any) int {
+	count := 0
+
+	if system, ok := asArray(root["system"]); ok {
+		for _, item := range system {
+			if obj, ok := asObject(item); ok {
+				if _, exists := obj["cache_control"]; exists {
+					count++
+				}
+			}
+		}
+	}
+
+	if tools, ok := asArray(root["tools"]); ok {
+		for _, item := range tools {
+			if obj, ok := asObject(item); ok {
+				if _, exists := obj["cache_control"]; exists {
+					count++
+				}
+			}
+		}
+	}
+
+	if messages, ok := asArray(root["messages"]); ok {
+		for _, msg := range messages {
+			msgObj, ok := asObject(msg)
+			if !ok {
+				continue
+			}
+			content, ok := asArray(msgObj["content"])
+			if !ok {
+				continue
+			}
+			for _, item := range content {
+				if obj, ok := asObject(item); ok {
+					if _, exists := obj["cache_control"]; exists {
+						count++
+					}
+				}
+			}
+		}
+	}
+
+	return count
+}
+
+func normalizeTTLForBlock(obj map[string]any, seen5m *bool) bool {
+	ccRaw, exists := obj["cache_control"]
+	if !exists {
+		return false
+	}
+	cc, ok := asObject(ccRaw)
+	if !ok {
 		*seen5m = true
-		return payload
+		return false
+	}
+	ttlRaw, ttlExists := cc["ttl"]
+	ttl, ttlIsString := ttlRaw.(string)
+	if !ttlExists || !ttlIsString || ttl != "1h" {
+		*seen5m = true
+		return false
 	}
 	// TTL is 1h — downgrade to default if a 5m block was already seen.
 	if *seen5m {
-		payload, _ = sjson.DeleteBytes(payload, ccPath+".ttl")
+		delete(cc, "ttl")
+		return true
+	}
+	return false
+}
+
+func findLastCacheControlIndex(arr []any) int {
+	last := -1
+	for idx, item := range arr {
+		obj, ok := asObject(item)
+		if !ok {
+			continue
+		}
+		if _, exists := obj["cache_control"]; exists {
+			last = idx
+		}
+	}
+	return last
+}
+
+func stripCacheControlExceptIndex(arr []any, preserveIdx int, excess *int) {
+	for idx, item := range arr {
+		if *excess <= 0 {
+			return
+		}
+		obj, ok := asObject(item)
+		if !ok {
+			continue
+		}
+		if _, exists := obj["cache_control"]; exists && idx != preserveIdx {
+			delete(obj, "cache_control")
+			*excess--
+		}
+	}
+}
+
+func stripAllCacheControl(arr []any, excess *int) {
+	for _, item := range arr {
+		if *excess <= 0 {
+			return
+		}
+		obj, ok := asObject(item)
+		if !ok {
+			continue
+		}
+		if _, exists := obj["cache_control"]; exists {
+			delete(obj, "cache_control")
+			*excess--
+		}
+	}
+}
+
+func stripMessageCacheControl(messages []any, excess *int) {
+	for _, msg := range messages {
+		if *excess <= 0 {
+			return
+		}
+		msgObj, ok := asObject(msg)
+		if !ok {
+			continue
+		}
+		content, ok := asArray(msgObj["content"])
+		if !ok {
+			continue
+		}
+		for _, item := range content {
+			if *excess <= 0 {
+				return
+			}
+			obj, ok := asObject(item)
+			if !ok {
+				continue
+			}
+			if _, exists := obj["cache_control"]; exists {
+				delete(obj, "cache_control")
+				*excess--
+			}
+		}
 	}
 	return payload
 }
@@ -1704,22 +1865,25 @@ func normalizeTTLForBlockGJSON(payload []byte, ccPath string, seen5m *bool) []by
 // is seen, strip ttl from ALL subsequent 1h blocks (downgrading them to 5m).
 func normalizeCacheControlTTL(payload []byte) []byte {
 	seen5m := false
+	modified := false
 
-	// 1. Walk tools in evaluation order.
-	tools := gjson.GetBytes(payload, "tools")
-	if tools.IsArray() {
-		for i := 0; i < int(tools.Get("#").Int()); i++ {
-			ccPath := fmt.Sprintf("tools.%d.cache_control", i)
-			payload = normalizeTTLForBlockGJSON(payload, ccPath, &seen5m)
+	if tools, ok := asArray(root["tools"]); ok {
+		for _, tool := range tools {
+			if obj, ok := asObject(tool); ok {
+				if normalizeTTLForBlock(obj, &seen5m) {
+					modified = true
+				}
+			}
 		}
 	}
 
-	// 2. Walk system blocks in evaluation order.
-	system := gjson.GetBytes(payload, "system")
-	if system.IsArray() {
-		for i := 0; i < int(system.Get("#").Int()); i++ {
-			ccPath := fmt.Sprintf("system.%d.cache_control", i)
-			payload = normalizeTTLForBlockGJSON(payload, ccPath, &seen5m)
+	if system, ok := asArray(root["system"]); ok {
+		for _, item := range system {
+			if obj, ok := asObject(item); ok {
+				if normalizeTTLForBlock(obj, &seen5m) {
+					modified = true
+				}
+			}
 		}
 	}
 
@@ -1731,14 +1895,24 @@ func normalizeCacheControlTTL(payload []byte) []byte {
 			if !content.IsArray() {
 				continue
 			}
-			for ci := 0; ci < int(content.Get("#").Int()); ci++ {
-				ccPath := fmt.Sprintf("messages.%d.content.%d.cache_control", mi, ci)
-				payload = normalizeTTLForBlockGJSON(payload, ccPath, &seen5m)
+			content, ok := asArray(msgObj["content"])
+			if !ok {
+				continue
+			}
+			for _, item := range content {
+				if obj, ok := asObject(item); ok {
+					if normalizeTTLForBlock(obj, &seen5m) {
+						modified = true
+					}
+				}
 			}
 		}
 	}
 
-	return payload
+	if !modified {
+		return payload
+	}
+	return marshalPayloadObject(payload, root)
 }
 
 // enforceCacheControlLimit removes excess cache_control blocks from a payload
