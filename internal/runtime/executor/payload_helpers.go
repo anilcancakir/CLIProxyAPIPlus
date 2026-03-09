@@ -7,6 +7,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/thinking"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/executor"
+	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -316,4 +317,317 @@ func matchModelPattern(pattern, model string) bool {
 		pi++
 	}
 	return pi == len(pattern)
+}
+
+// applySystemPromptRules injects system prompts into model payloads based on config rules.
+//
+// The function evaluates SystemPrompts rules against the provided model and protocol,
+// calling the appropriate protocol-specific injector when a match is found.
+// If SystemPrompts is empty or the payload is empty, the payload is returned unchanged.
+//
+// Parameters:
+// - cfg: global configuration containing SystemPrompts rules
+// - model: the resolved model name (e.g., "claude-3-sonnet")
+// - protocol: the translator protocol (e.g., "claude", "openai")
+// - payload: the JSON request payload to modify
+//
+// Returns: the modified payload with injected system prompts, or original if no rules match.
+func applySystemPromptRules(
+	cfg *config.Config,
+	model,
+	protocol string,
+	payload []byte,
+	requestedModel string,
+) []byte {
+	// 1. Guard: empty config, payload, or no rules → return unchanged.
+	if cfg == nil || len(payload) == 0 {
+		return payload
+	}
+	if len(cfg.Payload.SystemPrompts) == 0 {
+		return payload
+	}
+
+	// 2. Normalize and validate inputs.
+	model = strings.TrimSpace(model)
+	protocol = strings.TrimSpace(protocol)
+	requestedModel = strings.TrimSpace(requestedModel)
+	if model == "" && requestedModel == "" {
+		return payload
+	}
+
+	// 3. Build model candidates for matching (includes both upstream and alias names).
+	candidates := payloadModelCandidates(model, requestedModel)
+
+	// 4. Iterate through rules and apply matching injectors.
+	out := payload
+	for i := range cfg.Payload.SystemPrompts {
+		rule := &cfg.Payload.SystemPrompts[i]
+
+		// Skip if models don't match.
+		if !payloadModelRulesMatch(rule.Models, protocol, candidates) {
+			continue
+		}
+
+		// Skip if prompt is empty.
+		prompt := strings.TrimSpace(rule.Prompt)
+		if prompt == "" {
+			log.Warnf("[SystemPrompt] Rule %d: matched but prompt is empty", i)
+			continue
+		}
+
+		// Normalize mode; default to "prepend".
+		mode := strings.TrimSpace(rule.Mode)
+		if mode == "" {
+			mode = "prepend"
+		}
+
+		// Route to protocol-specific injector.
+		switch protocol {
+		case "claude":
+			out = injectClaudeSystemPrompt(out, prompt, mode)
+		case "openai":
+			out = injectOpenAISystemPrompt(out, prompt, mode)
+		}
+	}
+
+	return out
+}
+
+// injectClaudeSystemPrompt injects a system prompt into Claude-format payloads.
+//
+// Claude API uses a "system" field containing an array of content blocks.
+// Each block has format: {"type":"text","text":"content"}.
+//
+// Mode behavior:
+// - "prepend": Insert new block at beginning of system array
+// - "append": Add new block at end of system array
+// - "replace": Replace entire system array with single text block
+//
+// If the system field doesn't exist, it is created. If it's not an array,
+// it is gracefully handled based on mode (replaced or wrapped).
+//
+// Parameters:
+// - payload: the Claude-format JSON request payload
+// - prompt: the system prompt text to inject
+// - mode: injection mode ("prepend", "append", or "replace")
+//
+// Returns: modified payload with injected system prompt.
+func injectClaudeSystemPrompt(payload []byte, prompt, mode string) []byte {
+	if len(payload) == 0 || prompt == "" {
+		return payload
+	}
+
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" {
+		mode = "prepend"
+	}
+
+	// Get current system field (array of blocks).
+	systemValue := gjson.GetBytes(payload, "system")
+
+	switch mode {
+	case "replace":
+		// 1. Replace entire system with single text block.
+		newBlock := map[string]string{
+			"type": "text",
+			"text": prompt,
+		}
+		updated, err := sjson.SetBytes(
+			payload,
+			"system",
+			[]map[string]string{newBlock},
+		)
+		if err != nil {
+			return payload
+		}
+		return updated
+
+	case "append":
+		// 1. Get existing system array or start empty.
+		var blocks []interface{}
+		if systemValue.IsArray() {
+			// Parse existing blocks.
+			raw := systemValue.Raw
+			var parsed []interface{}
+			if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
+				blocks = parsed
+			}
+		}
+
+		// 2. Append new block.
+		newBlock := map[string]string{
+			"type": "text",
+			"text": prompt,
+		}
+		blocks = append(blocks, newBlock)
+
+		// 3. Write back.
+		updated, err := sjson.SetBytes(payload, "system", blocks)
+		if err != nil {
+			return payload
+		}
+		return updated
+
+	case "prepend":
+		fallthrough
+
+	default:
+		// 1. Get existing system array or start empty.
+		var blocks []interface{}
+		if systemValue.IsArray() {
+			// Parse existing blocks.
+			raw := systemValue.Raw
+			var parsed []interface{}
+			if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
+				blocks = parsed
+			}
+		}
+
+		// 2. Prepend new block.
+		newBlock := map[string]string{
+			"type": "text",
+			"text": prompt,
+		}
+		blocks = append(
+			[]interface{}{newBlock},
+			blocks...,
+		)
+
+		// 3. Write back.
+		updated, err := sjson.SetBytes(payload, "system", blocks)
+		if err != nil {
+			return payload
+		}
+		return updated
+	}
+}
+
+// injectOpenAISystemPrompt injects a system prompt into OpenAI-format payloads.
+//
+// OpenAI API uses a "messages" array with role-based message objects.
+// System prompts are messages with role: "system" and content: "text".
+//
+// Mode behavior:
+// - "prepend": Insert new system message at beginning of messages array
+// - "append": Add new system message at end of messages array
+// - "replace": Remove all existing system messages, add one new system message
+//
+// If the messages field doesn't exist or is not an array, a new array is created.
+// Existing system messages are preserved unless mode is "replace".
+//
+// Parameters:
+// - payload: the OpenAI-format JSON request payload
+// - prompt: the system prompt text to inject
+// - mode: injection mode ("prepend", "append", or "replace")
+//
+// Returns: modified payload with injected system prompt.
+func injectOpenAISystemPrompt(payload []byte, prompt, mode string) []byte {
+	if len(payload) == 0 || prompt == "" {
+		return payload
+	}
+
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" {
+		mode = "prepend"
+	}
+
+	// Get current messages array.
+	messagesValue := gjson.GetBytes(payload, "messages")
+
+	switch mode {
+	case "replace":
+		// 1. Remove all existing system messages.
+		var messages []interface{}
+		if messagesValue.IsArray() {
+			raw := messagesValue.Raw
+			var parsed []interface{}
+			if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
+				// Filter out system messages.
+				for _, msg := range parsed {
+					msgMap, ok := msg.(map[string]interface{})
+					if ok {
+						if role, hasRole := msgMap["role"]; hasRole {
+							if roleStr, isStr := role.(string); !isStr ||
+								roleStr != "system" {
+								messages = append(messages, msg)
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// 2. Prepend new system message.
+		newMsg := map[string]string{
+			"role":    "system",
+			"content": prompt,
+		}
+		messages = append(
+			[]interface{}{newMsg},
+			messages...,
+		)
+
+		// 3. Write back.
+		updated, err := sjson.SetBytes(payload, "messages", messages)
+		if err != nil {
+			return payload
+		}
+		return updated
+
+	case "append":
+		// 1. Get existing messages array or start empty.
+		var messages []interface{}
+		if messagesValue.IsArray() {
+			raw := messagesValue.Raw
+			var parsed []interface{}
+			if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
+				messages = parsed
+			}
+		}
+
+		// 2. Append new system message.
+		newMsg := map[string]string{
+			"role":    "system",
+			"content": prompt,
+		}
+		messages = append(messages, newMsg)
+
+		// 3. Write back.
+		updated, err := sjson.SetBytes(payload, "messages", messages)
+		if err != nil {
+			return payload
+		}
+		return updated
+
+	case "prepend":
+		fallthrough
+
+	default:
+		// 1. Get existing messages array or start empty.
+		var messages []interface{}
+		if messagesValue.IsArray() {
+			raw := messagesValue.Raw
+			var parsed []interface{}
+			if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
+				messages = parsed
+			}
+		}
+
+		// 2. Prepend new system message.
+		newMsg := map[string]string{
+			"role":    "system",
+			"content": prompt,
+		}
+		messages = append(
+			[]interface{}{newMsg},
+			messages...,
+		)
+
+		// 3. Write back.
+		updated, err := sjson.SetBytes(payload, "messages", messages)
+		if err != nil {
+			return payload
+		}
+		return updated
+	}
 }

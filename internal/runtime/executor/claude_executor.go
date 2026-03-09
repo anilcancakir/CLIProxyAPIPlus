@@ -222,26 +222,18 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	// become invalid after system prompt mutation.
 	body = stripThinkingBlocks(body)
 
-	// Apply cloaking (system prompt injection, fake user ID, sensitive word obfuscation)
-	// based on client type and configuration.
 	body = applyCloaking(ctx, e.cfg, auth, body, baseModel, apiKey)
 
-
 	requestedModel := payloadRequestedModel(opts, req.Model)
+	body = applySystemPromptRules(e.cfg, baseModel, to.String(), body, requestedModel)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
 
-	// Disable thinking if tool_choice forces tool use (Anthropic API constraint)
 	body = disableThinkingIfToolChoiceForced(body)
 
-
-	// Auto-inject cache_control if missing (optimization for ClawdBot/clients without caching support)
 	if countCacheControls(body) == 0 {
 		body = ensureCacheControl(body)
 	}
 
-	// Enforce Anthropic's cache_control block limit (max 4 breakpoints per request).
-	// Cloaking and ensureCacheControl may push the total over 4 when the client
-	// (e.g. Amp CLI) already sends multiple cache_control blocks.
 	body = enforceCacheControlLimit(body, 4)
 
 	// Normalize TTL values to prevent ordering violations under prompt-caching-scope-2026-01-05.
@@ -398,27 +390,20 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		return nil, err
 	}
 
-	// Strip thinking blocks — see comment in Execute() for rationale.
 	body = stripThinkingBlocks(body)
 
-	// Apply cloaking (system prompt injection, fake user ID, sensitive word obfuscation)
-	// based on client type and configuration.
 	body = applyCloaking(ctx, e.cfg, auth, body, baseModel, apiKey)
 
-
 	requestedModel := payloadRequestedModel(opts, req.Model)
+	body = applySystemPromptRules(e.cfg, baseModel, to.String(), body, requestedModel)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
 
-	// Disable thinking if tool_choice forces tool use (Anthropic API constraint)
 	body = disableThinkingIfToolChoiceForced(body)
 
-
-	// Auto-inject cache_control if missing (optimization for ClawdBot/clients without caching support)
 	if countCacheControls(body) == 0 {
 		body = ensureCacheControl(body)
 	}
 
-	// Enforce Anthropic's cache_control block limit (max 4 breakpoints per request).
 	body = enforceCacheControlLimit(body, 4)
 
 	// Normalize TTL values to prevent ordering violations under prompt-caching-scope-2026-01-05.
@@ -1407,6 +1392,7 @@ func injectFakeUserID(payload []byte, apiKey string, useCache bool) []byte {
 	}
 	return payload
 }
+
 // extractCharWithFallback returns the character at the given index in text,
 // or the string literal "undefined" if index is out of bounds.
 // This replicates JavaScript's string indexing behavior.
@@ -1669,7 +1655,6 @@ func countCacheControls(payload []byte) int {
 	return count
 }
 
-
 // normalizeTTLForBlockGJSON checks a single cache_control block at the given gjson path.
 // If a 5m-TTL (or no-TTL) block has already been seen, any 1h-TTL block is downgraded
 // by removing its ttl field.
@@ -1678,22 +1663,17 @@ func normalizeTTLForBlockGJSON(payload []byte, ccPath string, seen5m *bool) []by
 	if !cc.Exists() {
 		return payload
 	}
-	var root map[string]any
-	if err := json.Unmarshal(payload, &root); err != nil {
-		return nil, false
+	ttl := gjson.GetBytes(payload, ccPath+".ttl").String()
+	if ttl != "1h" {
+		// No TTL or non-1h TTL -> treat as 5m (the default).
+		*seen5m = true
+		return payload
 	}
-	return root, true
-}
-
-func marshalPayloadObject(original []byte, root map[string]any) []byte {
-	if root == nil {
-		return original
+	// TTL is 1h — downgrade to default if a 5m block was already seen.
+	if *seen5m {
+		payload, _ = sjson.DeleteBytes(payload, ccPath+".ttl")
 	}
-	out, err := json.Marshal(root)
-	if err != nil {
-		return original
-	}
-	return out
+	return payload
 }
 
 func asObject(v any) (map[string]any, bool) {
@@ -1849,7 +1829,6 @@ func stripMessageCacheControl(messages []any, excess *int) {
 			}
 		}
 	}
-	return payload
 }
 
 // normalizeCacheControlTTL ensures cache_control TTL values don't violate the
@@ -1865,25 +1844,22 @@ func stripMessageCacheControl(messages []any, excess *int) {
 // is seen, strip ttl from ALL subsequent 1h blocks (downgrading them to 5m).
 func normalizeCacheControlTTL(payload []byte) []byte {
 	seen5m := false
-	modified := false
 
-	if tools, ok := asArray(root["tools"]); ok {
-		for _, tool := range tools {
-			if obj, ok := asObject(tool); ok {
-				if normalizeTTLForBlock(obj, &seen5m) {
-					modified = true
-				}
-			}
+	// 1. Walk tools in evaluation order.
+	tools := gjson.GetBytes(payload, "tools")
+	if tools.IsArray() {
+		for i := 0; i < int(tools.Get("#").Int()); i++ {
+			ccPath := fmt.Sprintf("tools.%d.cache_control", i)
+			payload = normalizeTTLForBlockGJSON(payload, ccPath, &seen5m)
 		}
 	}
 
-	if system, ok := asArray(root["system"]); ok {
-		for _, item := range system {
-			if obj, ok := asObject(item); ok {
-				if normalizeTTLForBlock(obj, &seen5m) {
-					modified = true
-				}
-			}
+	// 2. Walk system blocks in evaluation order.
+	system := gjson.GetBytes(payload, "system")
+	if system.IsArray() {
+		for i := 0; i < int(system.Get("#").Int()); i++ {
+			ccPath := fmt.Sprintf("system.%d.cache_control", i)
+			payload = normalizeTTLForBlockGJSON(payload, ccPath, &seen5m)
 		}
 	}
 
@@ -1895,24 +1871,14 @@ func normalizeCacheControlTTL(payload []byte) []byte {
 			if !content.IsArray() {
 				continue
 			}
-			content, ok := asArray(msgObj["content"])
-			if !ok {
-				continue
-			}
-			for _, item := range content {
-				if obj, ok := asObject(item); ok {
-					if normalizeTTLForBlock(obj, &seen5m) {
-						modified = true
-					}
-				}
+			for ci := 0; ci < int(content.Get("#").Int()); ci++ {
+				ccPath := fmt.Sprintf("messages.%d.content.%d.cache_control", mi, ci)
+				payload = normalizeTTLForBlockGJSON(payload, ccPath, &seen5m)
 			}
 		}
 	}
 
-	if !modified {
-		return payload
-	}
-	return marshalPayloadObject(payload, root)
+	return payload
 }
 
 // enforceCacheControlLimit removes excess cache_control blocks from a payload

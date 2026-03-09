@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -289,6 +290,9 @@ type PayloadConfig struct {
 	OverrideRaw []PayloadRule `yaml:"override-raw" json:"override-raw"`
 	// Filter defines rules that remove parameters from the payload by JSON path.
 	Filter []PayloadFilterRule `yaml:"filter" json:"filter"`
+	// SystemPrompts defines rules for injecting system prompts into matching model requests.
+	// Injection mode and protocol filtering allow flexible system prompt management per model or provider.
+	SystemPrompts []SystemPromptRule `yaml:"system-prompts" json:"system-prompts"`
 }
 
 // PayloadFilterRule describes a rule to remove specific JSON paths from matching model payloads.
@@ -314,6 +318,36 @@ type PayloadModelRule struct {
 	Name string `yaml:"name" json:"name"`
 	// Protocol restricts the rule to a specific translator format (e.g., "gemini", "responses").
 	Protocol string `yaml:"protocol" json:"protocol"`
+}
+
+// SystemPromptRule configures system prompt injection for matching models.
+// It supports model name patterns with wildcard matching and optional protocol filtering.
+type SystemPromptRule struct {
+	// Models lists model entries with name pattern and protocol constraint.
+	// Name supports wildcard patterns (e.g., "gpt-*", "*-pro", "claude-*-sonnet").
+	// Protocol optionally restricts injection to specific providers (e.g., "claude", "openai", "gemini").
+	Models []PayloadModelRule `yaml:"models" json:"models"`
+
+	// Prompt is the system prompt text to inject into matching requests.
+	// Either Prompt or PromptFile must be specified (PromptFile takes precedence if both are set).
+	Prompt string `yaml:"prompt,omitempty" json:"prompt,omitempty"`
+
+	// PromptFile is a path to a file containing the system prompt text.
+	// The file content is read at config load time and used as the prompt.
+	// Supports .md, .txt, or any text file. Path can be absolute or relative to config file.
+	PromptFile string `yaml:"prompt-file,omitempty" json:"prompt-file,omitempty"`
+
+	// Mode controls how the system prompt is injected into the request.
+	// Supported values: "prepend" (default), "replace", "append".
+	// - "prepend": add prompt before existing system messages
+	// - "replace": replace existing system messages with this prompt
+	// - "append": add prompt after existing system messages
+	Mode string `yaml:"mode,omitempty" json:"mode,omitempty"`
+
+	// Protocol optionally filters injection to requests matching a specific translator protocol.
+	// If empty, the rule applies to all protocols. Supported values: "claude", "openai", "gemini".
+	// Note: This is a top-level filter; per-model protocol matching is controlled via Models[].Protocol.
+	Protocol string `yaml:"protocol,omitempty" json:"protocol,omitempty"`
 }
 
 // CloakConfig configures request cloaking for non-Claude-Code clients.
@@ -709,6 +743,13 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 	// Validate raw payload rules and drop invalid entries.
 	cfg.SanitizePayloadRules()
 
+	// Validate system prompt injection rules and drop invalid entries.
+	configDir := ""
+	if configFile != "" {
+		configDir = filepath.Dir(configFile)
+	}
+	cfg.SanitizeSystemPromptRules(configDir)
+
 	// NOTE: Legacy migration persistence is intentionally disabled together with
 	// startup legacy migration to keep startup read-only for config.yaml.
 	// Re-enable the block below if automatic startup migration is needed again.
@@ -781,6 +822,107 @@ func payloadRawString(value any) ([]byte, bool) {
 	default:
 		return nil, false
 	}
+}
+
+// SanitizeSystemPromptRules validates system prompt injection rules and drops invalid entries.
+// Validation ensures:
+// 1. Each rule has at least one model definition.
+// 2. Mode is one of: "prepend", "replace", "append" (defaults to "prepend" if empty).
+// 3. Either prompt text or prompt file is specified and not empty.
+// 4. If prompt-file is specified, the file must exist and be readable.
+// Invalid rules are logged as warnings and removed from the config.
+func (cfg *Config) SanitizeSystemPromptRules(configDir string) {
+	if cfg == nil || len(cfg.Payload.SystemPrompts) == 0 {
+		return
+	}
+
+	out := make([]SystemPromptRule, 0, len(cfg.Payload.SystemPrompts))
+	validModes := map[string]struct{}{
+		"prepend": {},
+		"replace": {},
+		"append":  {},
+	}
+
+	for i, rule := range cfg.Payload.SystemPrompts {
+		// 1. Validate models list is not empty.
+		if len(rule.Models) == 0 {
+			log.WithFields(log.Fields{
+				"section":    "system-prompts",
+				"rule_index": i + 1,
+			}).Warn("system prompt rule dropped: no models specified")
+			continue
+		}
+
+		// 2. Load prompt from file if specified, otherwise use inline prompt.
+		promptText := strings.TrimSpace(rule.Prompt)
+		if strings.TrimSpace(rule.PromptFile) != "" {
+			// Try to load from file
+			filePath := rule.PromptFile
+			log.Infof("[SystemPromptConfig] Rule %d: loading from file %s (configDir=%s)", i+1, rule.PromptFile, configDir)
+			if !filepath.IsAbs(filePath) && configDir != "" {
+				filePath = filepath.Join(configDir, filePath)
+				log.Infof("[SystemPromptConfig] Rule %d: resolved to absolute path %s", i+1, filePath)
+			}
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"section":    "system-prompts",
+					"rule_index": i + 1,
+					"file":       rule.PromptFile,
+					"resolved":   filePath,
+					"error":      err,
+				}).Warn("system prompt rule dropped: failed to read prompt file")
+				continue
+			}
+			promptText = strings.TrimSpace(string(content))
+			log.Infof("[SystemPromptConfig] Rule %d: loaded %d bytes from file", i+1, len(promptText))
+			if promptText == "" {
+				log.WithFields(log.Fields{
+					"section":    "system-prompts",
+					"rule_index": i + 1,
+					"file":       rule.PromptFile,
+				}).Warn("system prompt rule dropped: prompt file is empty")
+				continue
+			}
+			// Store loaded content in Prompt field for runtime use
+			rule.Prompt = promptText
+			log.Infof("[SystemPromptConfig] Rule %d: prompt loaded successfully (first 50 chars: %s...)", i+1, promptText[:min(50, len(promptText))])
+		}
+
+		// 3. Validate prompt is not empty.
+		if promptText == "" {
+			log.WithFields(log.Fields{
+				"section":    "system-prompts",
+				"rule_index": i + 1,
+			}).Warn("system prompt rule dropped: prompt is empty (specify 'prompt' or 'prompt-file')")
+			continue
+		}
+
+		// 4. Validate mode is valid (defaults to "prepend" if empty).
+		mode := strings.ToLower(strings.TrimSpace(rule.Mode))
+		if mode == "" {
+			mode = "prepend"
+		}
+		if _, validMode := validModes[mode]; !validMode {
+			log.WithFields(log.Fields{
+				"section":    "system-prompts",
+				"rule_index": i + 1,
+				"mode":       mode,
+			}).Warn(
+				"system prompt rule dropped: invalid mode; " +
+					"valid modes are 'prepend', 'replace', 'append'",
+			)
+			continue
+		}
+
+		// Normalize mode to the default if empty.
+		if rule.Mode == "" {
+			rule.Mode = "prepend"
+		}
+		out = append(out, rule)
+	}
+
+	cfg.Payload.SystemPrompts = out
 }
 
 // SanitizeOAuthModelAlias normalizes and deduplicates global OAuth model name aliases.

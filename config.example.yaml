@@ -241,6 +241,15 @@ nonstream-keepalive-interval: 0
 #         alias: "claude-opus-4.66"
 #       - name: "kimi-k2.5"
 #         alias: "claude-opus-4.66"
+#
+#   # Example: Custom OpenAI-compatible provider with model alias and system prompt injection
+#   - name: "custom-llm"
+#     base-url: "https://api.custom-llm.com/v1"
+#     api-key-entries:
+#       - api-key: "sk-custom-..."
+#     models:
+#       - name: "kimi-k2.5"
+#         alias: "can"
 
 # Vertex API keys (Vertex-compatible endpoints, use API key + base URL)
 # vertex-api-key:
@@ -416,3 +425,31 @@ nonstream-keepalive-interval: 0
 #       params: # JSON paths (gjson/sjson syntax) to remove from the payload
 #         - "generationConfig.thinkingConfig.thinkingBudget"
 #         - "generationConfig.responseJsonSchema"
+#   system-prompts: # System prompt injection for matching models (supports wildcard patterns, protocol filtering, and file-based prompts)
+#     # Example 1: Inline prompt text
+#     - models:
+#         - name: "claude-opus-*"
+#           protocol: "claude"
+#       prompt: "You are a helpful assistant specialized in code review."
+#       mode: prepend # Options: prepend (default), replace, append
+#
+#     # Example 2: Load prompt from file (.md, .txt, or any text file)
+#     - models:
+#         - name: "can"
+#           protocol: "openai"
+#       prompt-file: "./prompts/can-system-prompt.md" # Path relative to config file or absolute path
+#       mode: prepend
+#
+#     # Example 3: File-based prompt for Gemini models
+#     - models:
+#         - name: "gemini-*"
+#           protocol: "gemini"
+#       prompt-file: "/absolute/path/to/gemini-prompt.txt"
+#       mode: prepend
+#
+#     # Example 4: Replace mode with inline prompt
+#     - models:
+#         - name: "gpt-4*"
+#           protocol: "openai"
+#       prompt: "You are a senior software architect. Be thorough."
+#       mode: replace

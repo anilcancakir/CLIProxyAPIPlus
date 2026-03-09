@@ -85,7 +85,7 @@ quota-exceeded:
 	}
 
 	expected := map[string]float64{
-		"claude-opus-4-5-20251101":    80.5,
+		"claude-opus-4-5-20251101":   80.5,
 		"claude-sonnet-4-5-20250929": 95.0,
 	}
 

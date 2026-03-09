@@ -432,6 +432,94 @@ Fixes applied to both streaming and non-streaming paths:
 
 ---
 
+## Model-Based System Prompt Injection
+
+Inject custom system prompts into requests based on model name patterns. Supports wildcards, protocol filtering, and multiple injection modes.
+
+### Configuration
+
+Add rules under `payload.system-prompts` in `config.yaml`:
+
+```yaml
+payload:
+  system-prompts:
+    - models:
+        - name: "claude-opus-*"
+          protocol: "claude"
+      prompt: "You are a helpful assistant specialized in code review."
+      mode: prepend
+    
+    - models:
+        - name: "can"
+          protocol: "openai"
+      prompt: "You are Can, a helpful AI assistant."
+      mode: prepend
+```
+
+### Model Pattern Matching
+
+Model names support glob-style wildcards:
+
+| Pattern | Matches |
+|:--------|:--------|
+| `claude-*` | `claude-opus-4`, `claude-sonnet-4`, etc. |
+| `*-opus-*` | Any model with "opus" in the name |
+| `gpt-4*` | `gpt-4`, `gpt-4-turbo`, etc. |
+| `can` | Exact match for "can" alias |
+
+### Injection Modes
+
+| Mode | Behavior |
+|:-----|:---------|
+| `prepend` | Add system prompt before existing messages (default) |
+| `append` | Add system prompt after existing messages |
+| `replace` | Replace all existing system messages |
+
+### Protocol Support
+
+System prompt injection works across all supported protocols:
+
+| Protocol | Format | Example Providers |
+|:---------|:-------|:------------------|
+| `claude` | `system` array | Claude API, Antigravity |
+| `openai` | `messages` array | OpenAI, OpenRouter, Custom providers |
+| `gemini` | `messages` array | Gemini, Vertex AI |
+
+### OpenAI-Compatible Providers
+
+Works with `openai-compatibility` providers. Example configuration for `kimi-k2.5` with `can` alias:
+
+```yaml
+openai-compatibility:
+  - name: "custom-llm"
+    base-url: "https://api.custom-llm.com/v1"
+    api-key-entries:
+      - api-key: "sk-custom-..."
+    models:
+      - name: "kimi-k2.5"
+        alias: "can"
+
+payload:
+  system-prompts:
+    - models:
+        - name: "can"
+          protocol: "openai"
+      prompt: "You are Can, a helpful AI assistant."
+      mode: prepend
+```
+
+### Validation
+
+Invalid rules are logged and dropped at startup:
+
+- Empty model list
+- Empty prompt text
+- Invalid mode (not `prepend`, `append`, or `replace`)
+
+**Files:** `internal/runtime/executor/payload_helpers.go`, `internal/config/config.go`
+
+---
+
 ## SDK Enhancements
 
 ### Sticky Session Routing

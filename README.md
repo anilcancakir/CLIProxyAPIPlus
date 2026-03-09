@@ -38,6 +38,25 @@ Claude models are routed through the standard OpenAI-format translation path —
 - **OAuth2 PKCE** — `cliproxyctl login --provider claude` runs a local callback flow; tokens stored as `claude-{email}.json` and auto-refreshed
 - **Quota Threshold Fallback** — per-model 5-hour utilization thresholds trigger fast 429 errors before the API call, letting the conductor fall back to alternative providers (Antigravity, Copilot) via existing priority routing
 
+### Model-Based System Prompt Injection
+
+Inject custom system prompts per model alias with wildcard pattern matching:
+
+```yaml
+payload:
+  system-prompts:
+    - models:
+        - name: "can"
+          protocol: "openai"
+      prompt: "You are Can, a helpful AI assistant."
+      mode: prepend
+```
+
+- **Pattern matching**: `claude-*`, `*-opus-*`, `gpt-4*`, exact matches
+- **Injection modes**: prepend (default), append, replace
+- **Protocol support**: Claude (system array), OpenAI/Gemini (messages array)
+- **Works with**: All providers including OpenAI-compatibility providers
+
 ### Translator Fixes
 
 - Thinking signature validation — invalid blocks silently dropped instead of 400 errors
@@ -87,7 +106,7 @@ User-controllable priority for OAuth providers and individual accounts:
 | Claude | API Key / OAuth | Request cloaking, prompt caching, TLS bypass, priority |
 | Gemini / Vertex | API Key | Turn merging, image generation |
 | Codex | WebSocket | Auto executor registration |
-| OpenAI Compat | API Key | DALL-E / Imagen images |
+| OpenAI Compat | API Key | System prompt injection, model aliases, DALL-E / Imagen images |
 
 ## Quick Deployment with Docker
 
