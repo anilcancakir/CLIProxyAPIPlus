@@ -474,6 +474,9 @@ func formatHour(hour int) string {
 	return fmt.Sprintf("%02d", hour)
 }
 
+// retentionDays controls how many days of request history are kept on disk and in memory.
+const retentionDays = 7
+
 var (
 	persistenceMutex sync.Mutex
 	persistencePath  string
@@ -504,11 +507,12 @@ func InitPersistence(dir string) error {
 
 	persistencePath = filepath.Join(dir, "usage_stats.json")
 
-	// Try to load existing stats
+	// Try to load existing stats and prune stale entries on startup.
 	if data, err := os.ReadFile(persistencePath); err == nil {
 		var snapshot StatisticsSnapshot
 		if err := json.Unmarshal(data, &snapshot); err == nil {
 			defaultRequestStatistics.MergeSnapshot(snapshot)
+			defaultRequestStatistics.Prune(time.Now().AddDate(0, 0, -retentionDays))
 		}
 	}
 
@@ -547,6 +551,10 @@ func savePersistence() {
 	if persistencePath == "" {
 		return
 	}
+
+	// Prune before snapshotting so the file never grows beyond the retention window.
+	defaultRequestStatistics.Prune(time.Now().AddDate(0, 0, -retentionDays))
+
 	snapshot := defaultRequestStatistics.Snapshot()
 	data, err := json.MarshalIndent(snapshot, "", "  ")
 	if err != nil {
@@ -557,4 +565,86 @@ func savePersistence() {
 		return
 	}
 	_ = os.Rename(tmpPath, persistencePath)
+}
+
+// Prune removes all request details older than the given cutoff time and rebuilds
+// every aggregate counter from the surviving records, keeping memory and disk
+// footprint bounded to the retention window.
+//
+// Parameters:
+//   - cutoff: Records with a timestamp strictly before this time are discarded.
+func (s *RequestStatistics) Prune(cutoff time.Time) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// 1. Reset all aggregate counters — they will be rebuilt from surviving details.
+	s.totalRequests = 0
+	s.successCount = 0
+	s.failureCount = 0
+	s.totalTokens = 0
+	s.requestsByDay = make(map[string]int64)
+	s.requestsByHour = make(map[int]int64)
+	s.tokensByDay = make(map[string]int64)
+	s.tokensByHour = make(map[int]int64)
+
+	// 2. Walk every API → model, drop stale details, remove empty buckets.
+	for apiName, api := range s.apis {
+		api.TotalRequests = 0
+		api.TotalTokens = 0
+
+		for modelName, model := range api.Models {
+			kept := model.Details[:0]
+			for _, d := range model.Details {
+				if !d.Timestamp.Before(cutoff) {
+					kept = append(kept, d)
+				}
+			}
+
+			if len(kept) == 0 {
+				delete(api.Models, modelName)
+				continue
+			}
+
+			model.Details = kept
+			model.TotalRequests = int64(len(kept))
+			model.TotalTokens = 0
+			for _, d := range kept {
+				model.TotalTokens += d.Tokens.TotalTokens
+			}
+		}
+
+		if len(api.Models) == 0 {
+			delete(s.apis, apiName)
+			continue
+		}
+
+		// 3. Rebuild API-level and global aggregates from surviving details.
+		for _, model := range api.Models {
+			api.TotalRequests += model.TotalRequests
+			api.TotalTokens += model.TotalTokens
+
+			for _, d := range model.Details {
+				tokens := d.Tokens.TotalTokens
+
+				s.totalRequests++
+				if d.Failed {
+					s.failureCount++
+				} else {
+					s.successCount++
+				}
+				s.totalTokens += tokens
+
+				day := d.Timestamp.Format("2006-01-02")
+				hour := d.Timestamp.Hour()
+				s.requestsByDay[day]++
+				s.requestsByHour[hour]++
+				s.tokensByDay[day] += tokens
+				s.tokensByHour[hour] += tokens
+			}
+		}
+	}
 }
