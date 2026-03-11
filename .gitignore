@@ -31,7 +31,7 @@ auths/*
 # Documentation
 docs/*
 AGENTS.md
-CLAUDE.md
+CLAUDE.local.md
 GEMINI.md
 
 # Tooling metadata
