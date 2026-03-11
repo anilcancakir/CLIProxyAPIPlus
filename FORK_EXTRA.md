@@ -434,7 +434,7 @@ Fixes applied to both streaming and non-streaming paths:
 
 ## Model-Based System Prompt Injection
 
-Inject custom system prompts into requests based on model name patterns. Supports wildcards, protocol filtering, and multiple injection modes.
+Inject custom system prompts into requests based on model name patterns. Supports wildcards, protocol filtering, and multiple injection modes. Prompts must be loaded from files using `prompt-file:` — inline `prompt:` is not supported.
 
 ### Configuration
 
@@ -446,13 +446,13 @@ payload:
     - models:
         - name: "claude-opus-*"
           protocol: "claude"
-      prompt: "You are a helpful assistant specialized in code review."
+      prompt-file: "./prompts/claude-opus-system-prompt.md"
       mode: prepend
-    
+
     - models:
         - name: "can"
           protocol: "openai"
-      prompt: "You are Can, a helpful AI assistant."
+      prompt-file: "./prompts/can-system-prompt.md"
       mode: prepend
 ```
 
@@ -504,7 +504,7 @@ payload:
     - models:
         - name: "can"
           protocol: "openai"
-      prompt: "You are Can, a helpful AI assistant."
+      prompt-file: "./prompts/can-system-prompt.md"
       mode: prepend
 ```
 
@@ -513,7 +513,7 @@ payload:
 Invalid rules are logged and dropped at startup:
 
 - Empty model list
-- Empty prompt text
+- Missing or unreadable `prompt-file`
 - Invalid mode (not `prepend`, `append`, or `replace`)
 
 **Files:** `internal/runtime/executor/payload_helpers.go`, `internal/config/config.go`
