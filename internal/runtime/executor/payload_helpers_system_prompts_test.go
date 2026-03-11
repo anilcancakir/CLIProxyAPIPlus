@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
+	"github.com/stretchr/testify/require"
 )
 
 // TestApplySystemPromptRules_EmptyConfig tests that empty config returns payload unchanged.
@@ -21,6 +22,10 @@ func TestApplySystemPromptRules_EmptyConfig(t *testing.T) {
 }
 
 func TestApplySystemPromptRules_NoMatchingRules(t *testing.T) {
+	tmpDir := t.TempDir()
+	promptFile := filepath.Join(tmpDir, "prompt.md")
+	require.NoError(t, os.WriteFile(promptFile, []byte("GPT prompt"), 0644))
+
 	cfg := &config.Config{
 		Payload: config.PayloadConfig{
 			SystemPrompts: []config.SystemPromptRule{
@@ -28,12 +33,14 @@ func TestApplySystemPromptRules_NoMatchingRules(t *testing.T) {
 					Models: []config.PayloadModelRule{
 						{Name: "gpt-*"},
 					},
-					Prompt: "GPT prompt",
-					Mode:   "prepend",
+					PromptFile: promptFile,
+					Mode:       "prepend",
 				},
 			},
 		},
 	}
+	cfg.SanitizeSystemPromptRules(tmpDir)
+
 	payload := []byte(`{"model":"claude-opus-4","system":[{"type":"text","text":"original"}]}`)
 
 	result := applySystemPromptRules(cfg, "claude-opus-4", "claude", payload, "")
@@ -44,6 +51,10 @@ func TestApplySystemPromptRules_NoMatchingRules(t *testing.T) {
 }
 
 func TestApplySystemPromptRules_MatchingModel(t *testing.T) {
+	tmpDir := t.TempDir()
+	promptFile := filepath.Join(tmpDir, "prompt.md")
+	require.NoError(t, os.WriteFile(promptFile, []byte("Injected prompt"), 0644))
+
 	cfg := &config.Config{
 		Payload: config.PayloadConfig{
 			SystemPrompts: []config.SystemPromptRule{
@@ -51,12 +62,14 @@ func TestApplySystemPromptRules_MatchingModel(t *testing.T) {
 					Models: []config.PayloadModelRule{
 						{Name: "claude-*"},
 					},
-					Prompt: "Injected prompt",
-					Mode:   "prepend",
+					PromptFile: promptFile,
+					Mode:       "prepend",
 				},
 			},
 		},
 	}
+	cfg.SanitizeSystemPromptRules(tmpDir)
+
 	payload := []byte(`{"model":"claude-opus-4","system":[{"type":"text","text":"original"}]}`)
 
 	result := applySystemPromptRules(cfg, "claude-opus-4", "claude", payload, "")
@@ -155,6 +168,10 @@ func TestInjectOpenAISystemPrompt_NoMessages(t *testing.T) {
 
 // TestApplySystemPromptRules_ProtocolFilter tests protocol filtering.
 func TestApplySystemPromptRules_ProtocolFilter(t *testing.T) {
+	tmpDir := t.TempDir()
+	promptFile := filepath.Join(tmpDir, "prompt.md")
+	require.NoError(t, os.WriteFile(promptFile, []byte("Claude only"), 0644))
+
 	cfg := &config.Config{
 		Payload: config.PayloadConfig{
 			SystemPrompts: []config.SystemPromptRule{
@@ -162,12 +179,14 @@ func TestApplySystemPromptRules_ProtocolFilter(t *testing.T) {
 					Models: []config.PayloadModelRule{
 						{Name: "claude-*", Protocol: "claude"},
 					},
-					Prompt: "Claude only",
-					Mode:   "prepend",
+					PromptFile: promptFile,
+					Mode:       "prepend",
 				},
 			},
 		},
 	}
+	cfg.SanitizeSystemPromptRules(tmpDir)
+
 	payload := []byte(`{"system":[]}`)
 
 	// Should match when protocol is "claude"
@@ -185,6 +204,12 @@ func TestApplySystemPromptRules_ProtocolFilter(t *testing.T) {
 
 // TestApplySystemPromptRules_MultipleRules tests multiple rules applied in order.
 func TestApplySystemPromptRules_MultipleRules(t *testing.T) {
+	tmpDir := t.TempDir()
+	opusPromptFile := filepath.Join(tmpDir, "opus.md")
+	generalPromptFile := filepath.Join(tmpDir, "general.md")
+	require.NoError(t, os.WriteFile(opusPromptFile, []byte("Opus specific"), 0644))
+	require.NoError(t, os.WriteFile(generalPromptFile, []byte("General Claude"), 0644))
+
 	cfg := &config.Config{
 		Payload: config.PayloadConfig{
 			SystemPrompts: []config.SystemPromptRule{
@@ -192,19 +217,21 @@ func TestApplySystemPromptRules_MultipleRules(t *testing.T) {
 					Models: []config.PayloadModelRule{
 						{Name: "claude-opus-*"},
 					},
-					Prompt: "Opus specific",
-					Mode:   "prepend",
+					PromptFile: opusPromptFile,
+					Mode:       "prepend",
 				},
 				{
 					Models: []config.PayloadModelRule{
 						{Name: "claude-*"},
 					},
-					Prompt: "General Claude",
-					Mode:   "append",
+					PromptFile: generalPromptFile,
+					Mode:       "append",
 				},
 			},
 		},
 	}
+	cfg.SanitizeSystemPromptRules(tmpDir)
+
 	payload := []byte(`{"system":[]}`)
 
 	result := applySystemPromptRules(cfg, "claude-opus-4", "claude", payload, "")
@@ -236,7 +263,6 @@ func TestApplySystemPromptRules_WithPromptFile(t *testing.T) {
 					Models: []config.PayloadModelRule{
 						{Name: "can"},
 					},
-					Prompt:     "Inline prompt", // Should be overridden by file
 					PromptFile: promptFile,
 					Mode:       "prepend",
 				},
@@ -250,12 +276,9 @@ func TestApplySystemPromptRules_WithPromptFile(t *testing.T) {
 	payload := []byte(`{"messages":[]}`)
 	result := applySystemPromptRules(cfg, "can", "openai", payload, "can")
 
-	// Should use file content, not inline
+	// Should use file content
 	if !contains(string(result), promptContent) {
 		t.Errorf("Expected prompt from file, got %s", string(result))
-	}
-	if contains(string(result), "Inline prompt") {
-		t.Error("Should not contain inline prompt when file is specified")
 	}
 }
 
@@ -355,8 +378,8 @@ func TestApplySystemPromptRules_PromptFileRelativePath(t *testing.T) {
 		t.Fatal("Expected rule to be valid")
 	}
 
-	if cfg.Payload.SystemPrompts[0].Prompt != promptContent {
-		t.Errorf("Expected prompt %q, got %q", promptContent, cfg.Payload.SystemPrompts[0].Prompt)
+	if cfg.Payload.SystemPrompts[0].EffectivePrompt() != promptContent {
+		t.Errorf("Expected prompt %q, got %q", promptContent, cfg.Payload.SystemPrompts[0].EffectivePrompt())
 	}
 }
 

@@ -46,8 +46,8 @@ func TestSystemPromptIntegration_EndToEnd(t *testing.T) {
 	}
 
 	// Verify prompt content is loaded
-	if cfg.Payload.SystemPrompts[0].Prompt != promptContent {
-		t.Errorf("Expected prompt %q, got %q", promptContent, cfg.Payload.SystemPrompts[0].Prompt)
+	if cfg.Payload.SystemPrompts[0].EffectivePrompt() != promptContent {
+		t.Errorf("Expected prompt %q, got %q", promptContent, cfg.Payload.SystemPrompts[0].EffectivePrompt())
 	}
 
 	// Simulate the request flow
@@ -111,6 +111,12 @@ func TestSystemPromptIntegration_WithOpenAIFormat(t *testing.T) {
 }
 
 func TestSystemPromptIntegration_AliasMatching(t *testing.T) {
+	tmpDir := t.TempDir()
+	promptFile := filepath.Join(tmpDir, "prompt.md")
+	if err := os.WriteFile(promptFile, []byte("You are Can, an AI assistant provided by Kodizm."), 0644); err != nil {
+		t.Fatalf("Failed to create prompt file: %v", err)
+	}
+
 	cfg := &config.Config{
 		Payload: config.PayloadConfig{
 			SystemPrompts: []config.SystemPromptRule{
@@ -118,12 +124,13 @@ func TestSystemPromptIntegration_AliasMatching(t *testing.T) {
 					Models: []config.PayloadModelRule{
 						{Name: "can", Protocol: "openai"},
 					},
-					Prompt: "You are Can, an AI assistant provided by Kodizm.",
-					Mode:   "prepend",
+					PromptFile: promptFile,
+					Mode:       "prepend",
 				},
 			},
 		},
 	}
+	cfg.SanitizeSystemPromptRules(tmpDir)
 
 	payload := []byte(`{"model":"kimi-k2.5","messages":[{"role":"user","content":"Who are you?"}]}`)
 

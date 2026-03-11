@@ -369,7 +369,7 @@ func applySystemPromptRules(
 		}
 
 		// Skip if prompt is empty.
-		prompt := strings.TrimSpace(rule.Prompt)
+		prompt := strings.TrimSpace(rule.EffectivePrompt())
 		if prompt == "" {
 			log.Warnf("[SystemPrompt] Rule %d: matched but prompt is empty", i)
 			continue

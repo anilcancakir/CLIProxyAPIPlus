@@ -328,10 +328,6 @@ type SystemPromptRule struct {
 	// Protocol optionally restricts injection to specific providers (e.g., "claude", "openai", "gemini").
 	Models []PayloadModelRule `yaml:"models" json:"models"`
 
-	// Prompt is the system prompt text to inject into matching requests.
-	// Either Prompt or PromptFile must be specified (PromptFile takes precedence if both are set).
-	Prompt string `yaml:"prompt,omitempty" json:"prompt,omitempty"`
-
 	// PromptFile is a path to a file containing the system prompt text.
 	// The file content is read at config load time and used as the prompt.
 	// Supports .md, .txt, or any text file. Path can be absolute or relative to config file.
@@ -348,6 +344,15 @@ type SystemPromptRule struct {
 	// If empty, the rule applies to all protocols. Supported values: "claude", "openai", "gemini".
 	// Note: This is a top-level filter; per-model protocol matching is controlled via Models[].Protocol.
 	Protocol string `yaml:"protocol,omitempty" json:"protocol,omitempty"`
+
+	// runtimePrompt holds prompt text loaded from PromptFile at config init time. Never serialized.
+	runtimePrompt string
+}
+
+// EffectivePrompt returns the prompt text to use at request time.
+// Returns the content loaded from PromptFile at config init time.
+func (r *SystemPromptRule) EffectivePrompt() string {
+	return r.runtimePrompt
 }
 
 // CloakConfig configures request cloaking for non-Claude-Code clients.
@@ -828,8 +833,7 @@ func payloadRawString(value any) ([]byte, bool) {
 // Validation ensures:
 // 1. Each rule has at least one model definition.
 // 2. Mode is one of: "prepend", "replace", "append" (defaults to "prepend" if empty).
-// 3. Either prompt text or prompt file is specified and not empty.
-// 4. If prompt-file is specified, the file must exist and be readable.
+// 3. prompt-file is specified, the file must exist, be readable, and non-empty.
 // Invalid rules are logged as warnings and removed from the config.
 func (cfg *Config) SanitizeSystemPromptRules(configDir string) {
 	if cfg == nil || len(cfg.Payload.SystemPrompts) == 0 {
@@ -853,50 +857,46 @@ func (cfg *Config) SanitizeSystemPromptRules(configDir string) {
 			continue
 		}
 
-		// 2. Load prompt from file if specified, otherwise use inline prompt.
-		promptText := strings.TrimSpace(rule.Prompt)
-		if strings.TrimSpace(rule.PromptFile) != "" {
-			// Try to load from file
-			filePath := rule.PromptFile
-			log.Infof("[SystemPromptConfig] Rule %d: loading from file %s (configDir=%s)", i+1, rule.PromptFile, configDir)
-			if !filepath.IsAbs(filePath) && configDir != "" {
-				filePath = filepath.Join(configDir, filePath)
-				log.Infof("[SystemPromptConfig] Rule %d: resolved to absolute path %s", i+1, filePath)
-			}
-			content, err := os.ReadFile(filePath)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"section":    "system-prompts",
-					"rule_index": i + 1,
-					"file":       rule.PromptFile,
-					"resolved":   filePath,
-					"error":      err,
-				}).Warn("system prompt rule dropped: failed to read prompt file")
-				continue
-			}
-			promptText = strings.TrimSpace(string(content))
-			log.Infof("[SystemPromptConfig] Rule %d: loaded %d bytes from file", i+1, len(promptText))
-			if promptText == "" {
-				log.WithFields(log.Fields{
-					"section":    "system-prompts",
-					"rule_index": i + 1,
-					"file":       rule.PromptFile,
-				}).Warn("system prompt rule dropped: prompt file is empty")
-				continue
-			}
-			// Store loaded content in Prompt field for runtime use
-			rule.Prompt = promptText
-			log.Infof("[SystemPromptConfig] Rule %d: prompt loaded successfully (first 50 chars: %s...)", i+1, promptText[:min(50, len(promptText))])
+		// 2. prompt-file is required — load content into runtimePrompt.
+		if strings.TrimSpace(rule.PromptFile) == "" {
+			log.WithFields(log.Fields{
+				"section":    "system-prompts",
+				"rule_index": i + 1,
+			}).Warn("system prompt rule dropped: prompt-file is required")
+			continue
 		}
 
-		// 3. Validate prompt is not empty.
+		filePath := rule.PromptFile
+		log.Infof("[SystemPromptConfig] Rule %d: loading from file %s (configDir=%s)", i+1, rule.PromptFile, configDir)
+		if !filepath.IsAbs(filePath) && configDir != "" {
+			filePath = filepath.Join(configDir, filePath)
+			log.Infof("[SystemPromptConfig] Rule %d: resolved to absolute path %s", i+1, filePath)
+		}
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"section":    "system-prompts",
+				"rule_index": i + 1,
+				"file":       rule.PromptFile,
+				"resolved":   filePath,
+				"error":      err,
+			}).Warn("system prompt rule dropped: failed to read prompt file")
+			continue
+		}
+		promptText := strings.TrimSpace(string(content))
+		log.Infof("[SystemPromptConfig] Rule %d: loaded %d bytes from file", i+1, len(promptText))
+
+		// 3. Validate prompt file content is not empty.
 		if promptText == "" {
 			log.WithFields(log.Fields{
 				"section":    "system-prompts",
 				"rule_index": i + 1,
-			}).Warn("system prompt rule dropped: prompt is empty (specify 'prompt' or 'prompt-file')")
+				"file":       rule.PromptFile,
+			}).Warn("system prompt rule dropped: prompt file is empty or unreadable")
 			continue
 		}
+		rule.runtimePrompt = promptText
+		log.Infof("[SystemPromptConfig] Rule %d: prompt loaded successfully (first 50 chars: %s...)", i+1, promptText[:min(50, len(promptText))])
 
 		// 4. Validate mode is valid (defaults to "prepend" if empty).
 		mode := strings.ToLower(strings.TrimSpace(rule.Mode))
