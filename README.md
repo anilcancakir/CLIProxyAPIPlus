@@ -13,7 +13,7 @@ Claude models are routed through the standard OpenAI-format translation path —
 
 **OpenCode Client Configuration:**
 - Client ID: `Ov23li8tweQw6odWQebz` (OpenCode's OAuth client)
-- User-Agent: `opencode/0.1.0` (OpenCode pattern)
+- User-Agent: `opencode/1.2.27` (OpenCode pattern)
 - OpenAI-Intent: `conversation-edits`
 - Dynamic X-Initiator header based on conversation role (agent/user)
 - Removed VSCode-specific headers for cleaner OpenCode compatibility
@@ -28,14 +28,14 @@ Claude models are routed through the standard OpenAI-format translation path —
 
 ### Claude Code — Cloaking & Prompt Caching
 
-- **Request Cloaking** — any client (curl, OpenAI SDK, Roo-Code) is transparently disguised as Claude Code CLI v2.1.63 via deterministic billing header injection, agent system prompt, fake user_id, and header emulation
+- **Request Cloaking** — any client (curl, OpenAI SDK, Roo-Code) is transparently disguised as Claude Code CLI v2.1.76 via deterministic billing header injection, agent system prompt, fake user_id, and header emulation
 - **Cloak modes** — `auto` (default, cloak non-Claude clients), `always`, `never`; strict mode strips user system messages to enforce consistent identity
 - **Automated Prompt Caching** — auto-injects `cache_control: {"type": "ephemeral"}` breakpoints (up to 4 per request) across tools, system, and messages layers for up to 90% cost reduction on repeated prompts; thinking/redacted_thinking blocks are excluded to preserve signature integrity
 - **Thinking Signature Stability** — proxy-side stripping of historical thinking blocks before cloaking prevents `Invalid signature` 400 errors in multi-turn conversations; deterministic billing headers and thinking-safe cache control provide additional safety
 - **1M Context Window** — `X-CPA-CLAUDE-1M` request header auto-injects the `context-1m-2025-08-07` beta for 1M token context support
 - **Beta Header Resilience** — essential cloaking betas (`claude-code`, `oauth`, `interleaved-thinking`, `context-management`, `prompt-caching-scope`) are force-appended when clients send their own `Anthropic-Beta` header, preventing identity leaks
 - **TLS Fingerprint Bypass** — `utls` with `tls.HelloChrome_Auto` fingerprint and HTTP/2 connection pooling matches the real Claude Code wire footprint
-- **OAuth2 PKCE** — `cliproxyctl login --provider claude` runs a local callback flow; tokens stored as `claude-{email}.json` and auto-refreshed
+- **OAuth2 PKCE** — `cliproxyctl login --provider claude` runs a local callback flow via `platform.claude.com`; tokens stored as `claude-{email}.json` and auto-refreshed
 - **Quota Threshold Fallback** — per-model 5-hour utilization thresholds trigger fast 429 errors before the API call, letting the conductor fall back to alternative providers (Antigravity, Copilot) via existing priority routing
 
 ### Model-Based System Prompt Injection

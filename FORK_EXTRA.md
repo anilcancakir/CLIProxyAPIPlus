@@ -27,7 +27,7 @@ Key functions: `isGPT5Model()`, `useGitHubCopilotResponsesEndpoint()`
 The proxy identifies itself as OpenCode (an approved GitHub Copilot client) to ensure compatibility:
 
 - **Client ID**: `Ov23li8tweQw6odWQebz` (OpenCode's official GitHub OAuth Client ID)
-- **User-Agent**: `opencode/0.1.0` (OpenCode pattern)
+- **User-Agent**: `opencode/1.2.27` (OpenCode pattern)
 - **OpenAI-Intent**: `conversation-edits` (OpenCode's intent value)
 - **Scope**: `read:user` (simplified from VS Code's broader scope)
 
@@ -153,18 +153,18 @@ The `antigravity_executor.go` checks `IsRateLimited()` before dispatch, calls `r
 
 ## Claude Code — Request Cloaking & Prompt Caching
 
-Direct Anthropic API access with identity cloaking, automated prompt caching, and TLS fingerprint bypass. Any client (curl, OpenAI SDK, Roo-Code, etc.) is transparently disguised as the official Claude Code CLI.
+Direct Anthropic API access with identity cloaking, automated prompt caching, and TLS fingerprint bypass. Any client (curl, OpenAI SDK, Roo-Code, etc.) is transparently disguised as the official Claude Code CLI v2.1.76.
 
 ### Request Cloaking
 
-`ClaudeExecutor` rewrites outgoing requests to match the official Claude Code CLI v2.1.63 wire format. Clients that are not already identified as Claude Code get a full identity transplant before the request reaches Anthropic.
+`ClaudeExecutor` rewrites outgoing requests to match the official Claude Code CLI v2.1.76 wire format. Clients that are not already identified as Claude Code get a full identity transplant before the request reaches Anthropic.
 
 **Billing header injection**
 
-Every request receives an `x-anthropic-billing-header` containing the CLI version, entrypoint, and a `cch` hash — required for Claude Code subscription billing to apply. The header is **deterministic**: it uses a SHA-256 hash derived from the first user message text (characters at indices 4, 7, 20 with JavaScript-style `undefined` fallback for out-of-bounds) and a fixed salt, ensuring the same system prompt content is produced across turns.
+Every request receives an `x-anthropic-billing-header` containing the CLI version, entrypoint, and a `cch` hash — required for Claude Code subscription billing to apply. The header is **deterministic**: it uses a SHA-256 hash derived from the first user message text (characters at indices 4, 7, 20 with `"0"` fallback for out-of-bounds) and the version string as salt, ensuring the same system prompt content is produced across turns.
 
 ```
-x-anthropic-billing-header: cc_version=2.1.63.<buildHash>; cc_entrypoint=cli; cch=00000;
+x-anthropic-billing-header: cc_version=2.1.76.<buildHash>; cc_entrypoint=cli; cch=00000;
 ```
 
 Key functions: `generateBillingHeader()`, `extractCharWithFallback()`, `getFirstUserMessageText()`
@@ -193,11 +193,11 @@ Words listed under `sensitive-words` in the cloak config are obfuscated via zero
 
 **Header emulation**
 
-The following headers are set to match Claude Code 2.1.63 / `@anthropic-ai/sdk` 0.74.0:
+The following headers are set to match Claude Code 2.1.76 / `@anthropic-ai/sdk` 0.74.0:
 
 | Header | Value |
 |:-------|:------|
-| `User-Agent` | `claude-cli/2.1.63 (external, cli)` |
+| `User-Agent` | `claude-cli/2.1.76 (external)` |
 | `X-Stainless-Package-Version` | `0.74.0` |
 | `X-Stainless-Timeout` | `600` |
 
@@ -243,9 +243,11 @@ Standard Go TLS produces a fingerprint that differs from browser and Node.js cli
 
 `cliproxyctl login --provider claude` runs an OAuth2 PKCE flow:
 
-1. A local callback server (`oauth_server.go`) opens a browser to the Anthropic authorization URL
-2. The authorization code is captured on the redirect
-3. Tokens are exchanged and stored as `claude-{email}.json`
+1. A local callback server (`oauth_server.go`) opens a browser to the Anthropic authorization URL (`claude.ai/oauth/authorize`)
+2. The authorization code is captured on the redirect, user is redirected to `platform.claude.com` success page
+3. Token exchange via `platform.claude.com/v1/oauth/token` with PKCE (32-byte verifier, S256 challenge)
+4. Scopes: `org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload`
+5. Tokens are stored as `claude-{email}.json`
 
 **Auth file format:**
 
@@ -274,7 +276,7 @@ claude-api-key:
       cache-user-id: true
 
 claude-header-defaults:
-  user-agent: "claude-cli/2.1.63 (external, cli)"
+  user-agent: "claude-cli/2.1.76 (external)"
   package-version: "0.74.0"
   runtime-version: "v24.3.0"
   timeout: "600"
@@ -307,7 +309,7 @@ Called in both `Execute()` and `ExecuteStream()` before `applyCloaking()` — so
 
 **Deterministic billing header**
 
-`generateBillingHeader()` replicates Claude Code's exact algorithm: `sha256("59cf53e54c78" + text[4] + text[7] + text[20] + "2.1.42")[:3]` with `extractCharWithFallback()` handling JavaScript's out-of-bounds `undefined` quirk. The `cch` field is hardcoded to `"00000"`. This ensures the billing header injected into the system prompt is identical across turns for the same conversation.
+`generateBillingHeader()` replicates Claude Code's exact algorithm: `sha256("59cf53e54c78" + text[4] + text[7] + text[20] + "2.1.76")[:3]` with `extractCharWithFallback()` returning `"0"` for out-of-bounds indices (matching JS `A[w] || '0'`). The `cch` field is hardcoded to `"00000"`. This ensures the billing header injected into the system prompt is identical across turns for the same conversation.
 
 **Thinking-safe cache control**
 
@@ -739,8 +741,11 @@ Additional test files not present in upstream:
 | `internal/auth/antigravity/rate_limiter_test.go` | Rate limiter: reason-based backoff, model isolation |
 | `internal/auth/antigravity/integration_test.go` | End-to-end quota + rate limiter integration |
 | `internal/runtime/executor/claude_executor_test.go` | Cloaking, prompt cache injection, user ID, quota threshold |
-| `internal/runtime/executor/billing_header_test.go` | Billing header determinism, `extractCharWithFallback`, JS `undefined` quirk |
+| `internal/runtime/executor/billing_header_test.go` | Billing header determinism, `extractCharWithFallback`, `"0"` fallback |
 | `internal/runtime/executor/thinking_signature_test.go` | Thinking block stripping, cache_control guard, signature preservation |
+| `internal/auth/claude/claude_auth_test.go` | PKCE generation, OAuth constants, GenerateAuthURL scopes, token exchange |
+| `internal/runtime/executor/claude_fork_features_test.go` | isClaudeOAuthToken, claudeCreds, stripThinkingBlocks, applyClaudeHeaders, flattenAssistantContent |
+| `internal/runtime/executor/cloak_utils_test.go` | isClaudeCodeClient, shouldCloak modes, generateFakeUserID, isValidUserID |
 
 ---
 
