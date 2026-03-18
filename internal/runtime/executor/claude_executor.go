@@ -1055,7 +1055,7 @@ func applyClaudeHeaders(r *http.Request, auth *cliproxyauth.Auth, apiKey string,
 	misc.EnsureHeader(r.Header, ginHeaders, "Anthropic-Version", "2023-06-01")
 	misc.EnsureHeader(r.Header, ginHeaders, "Anthropic-Dangerous-Direct-Browser-Access", "true")
 	misc.EnsureHeader(r.Header, ginHeaders, "X-App", "cli")
-	// Values below match Claude Code 2.1.63 / @anthropic-ai/sdk 0.74.0 (updated 2026-02-28).
+	// Values below match Claude Code 2.1.76 / @anthropic-ai/sdk 0.74.0.
 	misc.EnsureHeader(r.Header, ginHeaders, "X-Stainless-Retry-Count", "0")
 	misc.EnsureHeader(r.Header, ginHeaders, "X-Stainless-Runtime-Version", hdrDefault(hd.RuntimeVersion, "v24.3.0"))
 	misc.EnsureHeader(r.Header, ginHeaders, "X-Stainless-Package-Version", hdrDefault(hd.PackageVersion, "0.74.0"))
@@ -1074,7 +1074,7 @@ func applyClaudeHeaders(r *http.Request, auth *cliproxyauth.Auth, apiKey string,
 	if isClaudeCodeClient(clientUA) {
 		r.Header.Set("User-Agent", clientUA)
 	} else {
-		r.Header.Set("User-Agent", hdrDefault(hd.UserAgent, "claude-cli/2.1.63 (external, cli)"))
+		r.Header.Set("User-Agent", hdrDefault(hd.UserAgent, "claude-cli/2.1.76 (external)"))
 	}
 	r.Header.Set("Connection", "keep-alive")
 	if stream {
@@ -1394,11 +1394,11 @@ func injectFakeUserID(payload []byte, apiKey string, useCache bool) []byte {
 }
 
 // extractCharWithFallback returns the character at the given index in text,
-// or the string literal "undefined" if index is out of bounds.
-// This replicates JavaScript's string indexing behavior.
+// or "0" if index is out of bounds. Matches Claude Code CLI v2.1.76:
+// [4, 7, 20].map((w) => A[w] || '0').
 func extractCharWithFallback(text string, index int) string {
 	if index >= len(text) {
-		return "undefined"
+		return "0"
 	}
 	return string(text[index])
 }
@@ -1442,27 +1442,27 @@ func getFirstUserMessageText(payload []byte) string {
 // Format: x-anthropic-billing-header: cc_version=<ver>.<build>; cc_entrypoint=cli; cch=<hash>;
 //
 // buildHash is deterministic, derived from the first user message text:
-// sha256("59cf53e54c78" + text[4] + text[7] + text[20] + "2.1.42")[:3]
-// where out-of-bounds indices return the string "undefined".
+// sha256("59cf53e54c78" + text[4] + text[7] + text[20] + VERSION)[:3]
+// where out-of-bounds indices return "0" (matches JS: A[w] || '0').
 func generateBillingHeader(payload []byte) string {
 	// Extract first user message text.
 	firstUserText := getFirstUserMessageText(payload)
 
-	// Extract characters at indices 4, 7, 20 (with "undefined" fallback).
+	// Extract characters at indices 4, 7, 20 (with "0" fallback).
 	ch4 := extractCharWithFallback(firstUserText, 4)
 	ch7 := extractCharWithFallback(firstUserText, 7)
 	ch20 := extractCharWithFallback(firstUserText, 20)
 
-	// Build deterministic hash: sha256("59cf53e54c78" + chars + "2.1.42")[:3]
-	hashInput := "59cf53e54c78" + ch4 + ch7 + ch20 + "2.1.42"
+	// Build deterministic hash: sha256("59cf53e54c78" + chars + "2.1.76")[:3]
+	hashInput := "59cf53e54c78" + ch4 + ch7 + ch20 + "2.1.76"
 	hashBytes := sha256.Sum256([]byte(hashInput))
 	buildHash := hex.EncodeToString(hashBytes[:])[:3]
 
-	// cch is hardcoded.
+	// cch is hardcoded to "00000" in production builds.
 	cch := "00000"
 
 	return fmt.Sprintf(
-		"x-anthropic-billing-header: cc_version=2.1.63.%s; cc_entrypoint=cli; cch=%s;",
+		"x-anthropic-billing-header: cc_version=2.1.76.%s; cc_entrypoint=cli; cch=%s;",
 		buildHash,
 		cch,
 	)

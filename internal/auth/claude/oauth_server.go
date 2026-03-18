@@ -218,8 +218,8 @@ func (s *OAuthServer) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	s.sendResult(result)
 
-	// Redirect to success page
-	http.Redirect(w, r, "/success", http.StatusFound)
+	// Redirect to Anthropic's success page (matches Claude Code CLI behavior).
+	http.Redirect(w, r, SuccessURL, http.StatusFound)
 }
 
 // handleSuccess handles the success page endpoint.

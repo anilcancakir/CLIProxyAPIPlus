@@ -35,16 +35,15 @@ func GeneratePKCECodes() (*PKCECodes, error) {
 }
 
 // generateCodeVerifier creates a cryptographically random string
-// of 128 characters using URL-safe base64 encoding
+// using URL-safe base64 encoding. Matches Claude Code CLI's
+// crypto.randomBytes(32) → base64url (43 chars).
 func generateCodeVerifier() (string, error) {
-	// Generate 96 random bytes (will result in 128 base64 characters)
-	bytes := make([]byte, 96)
+	bytes := make([]byte, 32)
 	_, err := rand.Read(bytes)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
 
-	// Encode to URL-safe base64 without padding
 	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bytes), nil
 }
 

@@ -17,11 +17,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// OAuth configuration constants for Claude/Anthropic
+// OAuth configuration constants for Claude/Anthropic.
+// Updated to match Claude Code CLI v2.1.76 production endpoints.
 const (
-	AuthURL     = "https://claude.ai/oauth/authorize"
-	TokenURL    = "https://api.anthropic.com/v1/oauth/token"
-	ClientID    = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+	AuthURL    = "https://claude.ai/oauth/authorize"
+	TokenURL   = "https://platform.claude.com/v1/oauth/token"
+	ClientID   = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+	SuccessURL = "https://platform.claude.com/buy_credits?returnUrl=/oauth/code/success%3Fapp%3Dclaude-code"
+
 	RedirectURI = "http://localhost:54545/callback"
 )
 
@@ -84,11 +87,10 @@ func (o *ClaudeAuth) GenerateAuthURL(state string, pkceCodes *PKCECodes) (string
 	}
 
 	params := url.Values{
-		"code":                  {"true"},
 		"client_id":             {ClientID},
 		"response_type":         {"code"},
 		"redirect_uri":          {RedirectURI},
-		"scope":                 {"org:create_api_key user:profile user:inference"},
+		"scope":                 {"org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"},
 		"code_challenge":        {pkceCodes.CodeChallenge},
 		"code_challenge_method": {"S256"},
 		"state":                 {state},
