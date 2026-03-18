@@ -22,7 +22,7 @@ const (
 	copilotAPIEndpoint = "https://api.githubcopilot.com"
 
 	// Common HTTP header values for Copilot API requests.
-	copilotUserAgent    = "opencode/0.1.0"
+	copilotUserAgent    = "opencode/1.2.27"
 	copilotOpenAIIntent = "conversation-edits"
 )
 

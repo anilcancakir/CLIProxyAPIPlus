@@ -91,8 +91,8 @@ func TestMakeAuthenticatedRequest_UsesOpenCodeHeaders(t *testing.T) {
 	if got := request.Header.Get("Authorization"); got != "Bearer ghu_token" {
 		t.Fatalf("Authorization = %q, want %q", got, "Bearer ghu_token")
 	}
-	if got := request.Header.Get("User-Agent"); got != "opencode/0.1.0" {
-		t.Fatalf("User-Agent = %q, want %q", got, "opencode/0.1.0")
+	if got := request.Header.Get("User-Agent"); got != "opencode/1.2.27" {
+		t.Fatalf("User-Agent = %q, want %q", got, "opencode/1.2.27")
 	}
 	if got := request.Header.Get("Openai-Intent"); got != "conversation-edits" {
 		t.Fatalf("Openai-Intent = %q, want %q", got, "conversation-edits")

@@ -77,6 +77,33 @@ func TestUseGitHubCopilotResponsesEndpoint_DefaultChat(t *testing.T) {
 	}
 }
 
+func TestUseGitHubCopilotResponsesEndpoint_GPT5Models(t *testing.T) {
+	t.Parallel()
+	// gpt-5 and gpt-5-preview should route to /responses (matching OpenCode).
+	tests := []struct {
+		model string
+		want  bool
+	}{
+		{"gpt-5", true},
+		{"gpt-5-preview", true},
+		{"gpt-5-turbo", true},
+		{"gpt-5-mini", false},
+		{"gpt-4o", false},
+		{"gpt-4-turbo", false},
+		{"gpt-6", true},
+		{"claude-opus-4.6", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			t.Parallel()
+			got := useGitHubCopilotResponsesEndpoint(sdktranslator.FromString("openai"), tt.model)
+			if got != tt.want {
+				t.Fatalf("useGitHubCopilotResponsesEndpoint(%q) = %v, want %v", tt.model, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNormalizeGitHubCopilotChatTools_KeepFunctionOnly(t *testing.T) {
 	t.Parallel()
 	body := []byte(`{"tools":[{"type":"function","function":{"name":"ok"}},{"type":"code_interpreter"}],"tool_choice":"auto"}`)
@@ -359,9 +386,25 @@ func TestDetectVisionContent_NoVision(t *testing.T) {
 
 func TestDetectVisionContent_NoMessages(t *testing.T) {
 	t.Parallel()
-	// After Responses API normalization, messages is removed — detection should return false
+	// After Responses API normalization, messages is removed — text-only input should return false
 	body := []byte(`{"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}]}`)
 	if detectVisionContent(body) {
-		t.Fatal("expected no vision content when messages field is absent")
+		t.Fatal("expected no vision content when input has only text")
+	}
+}
+
+func TestDetectVisionContent_ResponsesAPIInputImage(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{"input":[{"type":"message","role":"user","content":[{"type":"input_image","image_url":"data:image/png;base64,abc"}]}]}`)
+	if !detectVisionContent(body) {
+		t.Fatal("expected vision content detected in Responses API input_image")
+	}
+}
+
+func TestDetectVisionContent_NestedToolResultImage(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{"messages":[{"role":"user","content":[{"type":"tool_result","content":[{"type":"image","source":{"data":"abc","media_type":"image/png"}}]}]}]}`)
+	if !detectVisionContent(body) {
+		t.Fatal("expected vision content detected in nested tool_result image")
 	}
 }

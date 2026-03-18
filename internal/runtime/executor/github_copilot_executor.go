@@ -35,7 +35,7 @@ const (
 	maxScannerBufferSize = 20_971_520
 
 	// Copilot API header values.
-	copilotUserAgent    = "opencode/0.1.0"
+	copilotUserAgent    = "opencode/1.2.27"
 	copilotOpenAIIntent = "conversation-edits"
 )
 
@@ -526,25 +526,47 @@ func detectLastConversationRole(body []byte) string {
 }
 
 // detectVisionContent checks if the request body contains vision/image content.
-// Returns true if the request includes image_url or image type content blocks.
+// Mirrors OpenCode's detection across all three API formats:
+//   - Completions API: messages[].content[].type == "image_url"
+//   - Claude Messages API: messages[].content[].type == "image" (including nested in tool_result)
+//   - Responses API: input[].content[].type == "input_image"
 func detectVisionContent(body []byte) bool {
-	// Parse messages array
-	messagesResult := gjson.GetBytes(body, "messages")
-	if !messagesResult.Exists() || !messagesResult.IsArray() {
-		return false
-	}
-
-	// Check each message for vision content
-	for _, message := range messagesResult.Array() {
-		content := message.Get("content")
-
-		// If content is an array, check each content block
-		if content.IsArray() {
+	// Check messages array (Completions API + Claude Messages API).
+	if messages := gjson.GetBytes(body, "messages"); messages.Exists() && messages.IsArray() {
+		for _, message := range messages.Array() {
+			content := message.Get("content")
+			if !content.IsArray() {
+				continue
+			}
 			for _, block := range content.Array() {
 				blockType := block.Get("type").String()
-				// Check for image_url or image type
 				if blockType == "image_url" || blockType == "image" {
 					return true
+				}
+				// Claude Messages API: images nested inside tool_result content.
+				if blockType == "tool_result" {
+					nested := block.Get("content")
+					if nested.IsArray() {
+						for _, part := range nested.Array() {
+							if part.Get("type").String() == "image" {
+								return true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Check input array (Responses API).
+	if input := gjson.GetBytes(body, "input"); input.Exists() && input.IsArray() {
+		for _, item := range input.Array() {
+			content := item.Get("content")
+			if content.IsArray() {
+				for _, part := range content.Array() {
+					if part.Get("type").String() == "input_image" {
+						return true
+					}
 				}
 			}
 		}
@@ -569,7 +591,37 @@ func useGitHubCopilotResponsesEndpoint(sourceFormat sdktranslator.Format, model 
 		return true
 	}
 	baseModel := strings.ToLower(thinking.ParseSuffix(model).ModelName)
-	return strings.Contains(baseModel, "codex")
+	// Match OpenCode's shouldUseCopilotResponsesApi: gpt-5+ (except gpt-5-mini) → /responses.
+	// Also route *codex* models to /responses for backwards compatibility.
+	if strings.Contains(baseModel, "codex") {
+		return true
+	}
+	return shouldUseCopilotResponsesAPI(baseModel)
+}
+
+// shouldUseCopilotResponsesAPI mirrors OpenCode's routing logic:
+// gpt-N where N >= 5, excluding gpt-5-mini → /responses endpoint.
+func shouldUseCopilotResponsesAPI(modelID string) bool {
+	if !strings.HasPrefix(modelID, "gpt-") {
+		return false
+	}
+	rest := modelID[4:]
+	// Extract the major version number (digits after "gpt-").
+	i := 0
+	for i < len(rest) && rest[i] >= '0' && rest[i] <= '9' {
+		i++
+	}
+	if i == 0 {
+		return false
+	}
+	major := 0
+	for _, ch := range rest[:i] {
+		major = major*10 + int(ch-'0')
+	}
+	if major < 5 {
+		return false
+	}
+	return !strings.HasPrefix(modelID, "gpt-5-mini")
 }
 
 // flattenAssistantContent converts assistant message content from array format
