@@ -34,10 +34,10 @@ func TestExtractChar(t *testing.T) {
 			expected: "o",
 		},
 		{
-			name:     "returns undefined for out-of-bounds on normal text",
+			name:     "returns 0 for out-of-bounds on normal text",
 			text:     "Hello world",
 			index:    20,
-			expected: "undefined",
+			expected: "0",
 		},
 		{
 			name:     "returns first character",
@@ -46,16 +46,16 @@ func TestExtractChar(t *testing.T) {
 			expected: "h",
 		},
 		{
-			name:     "returns undefined for out-of-bounds on short text",
+			name:     "returns 0 for out-of-bounds on short text",
 			text:     "hi",
 			index:    4,
-			expected: "undefined",
+			expected: "0",
 		},
 		{
-			name:     "returns undefined for empty string",
+			name:     "returns 0 for empty string",
 			text:     "",
 			index:    0,
-			expected: "undefined",
+			expected: "0",
 		},
 		{
 			name:     "returns exact boundary index 20 when len is 21",
@@ -145,7 +145,7 @@ func TestBillingHeader(t *testing.T) {
 		},
 	}
 
-	pattern := regexp.MustCompile(`^x-anthropic-billing-header: cc_version=2\.1\.63\.([0-9a-f]{3}); cc_entrypoint=cli; cch=(.+);$`)
+	pattern := regexp.MustCompile(`^x-anthropic-billing-header: cc_version=2\.1\.76\.([0-9a-f]{3}); cc_entrypoint=cli; cch=(.+);$`)
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -178,33 +178,33 @@ func TestGenerateBillingHeader(t *testing.T) {
 		{
 			name:              "same payload generates deterministic header",
 			payload:           makePayload(t, "Hello, this is a test message for billing"),
-			expectedHashInput: "59cf53e54c78ott2.1.42",
+			expectedHashInput: "59cf53e54c78ott2.1.76",
 			assertDeterminism: true,
 		},
 		{
-			name:              "empty messages uses undefined fallback values",
+			name:              "empty messages uses 0 fallback values",
 			payload:           []byte(`{"messages":[]}`),
-			expectedHashInput: "59cf53e54c78undefinedundefinedundefined2.1.42",
+			expectedHashInput: "59cf53e54c780002.1.76",
 		},
 		{
-			name:              "short first user message mixes real and undefined characters",
+			name:              "short first user message mixes real and 0 characters",
 			payload:           makePayload(t, "hello"),
-			expectedHashInput: "59cf53e54c78oundefinedundefined2.1.42",
+			expectedHashInput: "59cf53e54c78o002.1.76",
 		},
 		{
 			name:              "normal first user message uses real characters at all positions",
 			payload:           makePayload(t, "abcdefghijklmnopqrstu"),
-			expectedHashInput: "59cf53e54c78ehu2.1.42",
+			expectedHashInput: "59cf53e54c78ehu2.1.76",
 		},
 	}
 
-	pattern := regexp.MustCompile(`^x-anthropic-billing-header: cc_version=2\.1\.63\.([0-9a-f]{3}); cc_entrypoint=cli; cch=(00000);$`)
+	pattern := regexp.MustCompile(`^x-anthropic-billing-header: cc_version=2\.1\.76\.([0-9a-f]{3}); cc_entrypoint=cli; cch=(00000);$`)
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			header := generateBillingHeader(testCase.payload)
 
-			if !strings.HasPrefix(header, "x-anthropic-billing-header: cc_version=2.1.63.") {
+			if !strings.HasPrefix(header, "x-anthropic-billing-header: cc_version=2.1.76.") {
 				t.Fatalf("header prefix mismatch: %q", header)
 			}
 
