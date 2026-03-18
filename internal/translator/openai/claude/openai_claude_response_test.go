@@ -49,8 +49,8 @@ func TestConvertOpenAIResponseToClaude_StreamToolUseEmitted(t *testing.T) {
 	}
 
 	// The first tool_use block must carry the tool name from the upstream.
-	if !strings.Contains(joined, `"name":"bash"`) {
-		t.Fatalf("expected tool name \"bash\" in stream output\noutput:\n%s", joined)
+	if !strings.Contains(joined, `"name":"Bash"`) {
+		t.Fatalf("expected tool name \"Bash\" in stream output\noutput:\n%s", joined)
 	}
 
 	// message_start must be emitted exactly once.

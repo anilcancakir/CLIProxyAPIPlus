@@ -60,7 +60,6 @@ const (
 	antigravityVersionRefresh = 12 * time.Hour
 )
 
-
 // Singleton instances initialized once on first use.
 var (
 	antigravityQuotaCheckerOnce sync.Once
@@ -111,6 +110,7 @@ var (
 		models []*registry.ModelInfo
 	}
 )
+
 func cloneAntigravityModels(models []*registry.ModelInfo) []*registry.ModelInfo {
 	if len(models) == 0 {
 		return nil
@@ -1443,7 +1443,6 @@ func FetchAntigravityModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *c
 		}
 
 		now := time.Now().Unix()
-		modelConfig := registry.GetAntigravityModelConfig()
 		models := make([]*registry.ModelInfo, 0, len(result.Map()))
 		for originalName, modelData := range result.Map() {
 			modelID := strings.TrimSpace(originalName)
@@ -1454,7 +1453,6 @@ func FetchAntigravityModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *c
 			case "chat_20706", "chat_23310", "tab_flash_lite_preview", "tab_jump_flash_lite_preview", "gemini-2.5-flash-thinking", "gemini-2.5-pro":
 				continue
 			}
-			modelCfg := modelConfig[modelID]
 
 			// Extract displayName from upstream response, fallback to modelID
 			displayName := modelData.Get("displayName").String()
@@ -1496,13 +1494,13 @@ func FetchAntigravityModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *c
 			// Supported generation methods (Gemini v1beta convention).
 			modelInfo.SupportedGenerationMethods = []string{"generateContent", "countTokens"}
 
-			// Look up Thinking support from static config using upstream model name.
-			if modelCfg != nil {
-				if modelCfg.Thinking != nil {
-					modelInfo.Thinking = modelCfg.Thinking
+			// Look up Thinking support from static model catalog.
+			if staticInfo := registry.LookupModelInfo(modelID, antigravityAuthType); staticInfo != nil {
+				if staticInfo.Thinking != nil {
+					modelInfo.Thinking = staticInfo.Thinking
 				}
-				if modelCfg.MaxCompletionTokens > 0 {
-					modelInfo.MaxCompletionTokens = modelCfg.MaxCompletionTokens
+				if staticInfo.MaxCompletionTokens > 0 {
+					modelInfo.MaxCompletionTokens = staticInfo.MaxCompletionTokens
 				}
 			}
 			models = append(models, modelInfo)
