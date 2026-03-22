@@ -9,6 +9,14 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+func joinByteSlices(slices [][]byte) string {
+	parts := make([]string, len(slices))
+	for i, s := range slices {
+		parts[i] = string(s)
+	}
+	return strings.Join(parts, "")
+}
+
 func TestGitHubCopilotNormalizeModel_StripsSuffix(t *testing.T) {
 	t.Parallel()
 
@@ -241,14 +249,14 @@ func TestTranslateGitHubCopilotResponsesNonStreamToClaude_TextMapping(t *testing
 	t.Parallel()
 	resp := []byte(`{"id":"resp_1","model":"gpt-5-codex","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":3,"output_tokens":5}}`)
 	out := translateGitHubCopilotResponsesNonStreamToClaude(resp)
-	if gjson.Get(out, "type").String() != "message" {
-		t.Fatalf("type = %q, want message", gjson.Get(out, "type").String())
+	if gjson.GetBytes(out, "type").String() != "message" {
+		t.Fatalf("type = %q, want message", gjson.GetBytes(out, "type").String())
 	}
-	if gjson.Get(out, "content.0.type").String() != "text" {
-		t.Fatalf("content.0.type = %q, want text", gjson.Get(out, "content.0.type").String())
+	if gjson.GetBytes(out, "content.0.type").String() != "text" {
+		t.Fatalf("content.0.type = %q, want text", gjson.GetBytes(out, "content.0.type").String())
 	}
-	if gjson.Get(out, "content.0.text").String() != "hello" {
-		t.Fatalf("content.0.text = %q, want hello", gjson.Get(out, "content.0.text").String())
+	if gjson.GetBytes(out, "content.0.text").String() != "hello" {
+		t.Fatalf("content.0.text = %q, want hello", gjson.GetBytes(out, "content.0.text").String())
 	}
 }
 
@@ -256,14 +264,14 @@ func TestTranslateGitHubCopilotResponsesNonStreamToClaude_ToolUseMapping(t *test
 	t.Parallel()
 	resp := []byte(`{"id":"resp_2","model":"gpt-5-codex","output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"sum","arguments":"{\"a\":1}"}],"usage":{"input_tokens":1,"output_tokens":2}}`)
 	out := translateGitHubCopilotResponsesNonStreamToClaude(resp)
-	if gjson.Get(out, "content.0.type").String() != "tool_use" {
-		t.Fatalf("content.0.type = %q, want tool_use", gjson.Get(out, "content.0.type").String())
+	if gjson.GetBytes(out, "content.0.type").String() != "tool_use" {
+		t.Fatalf("content.0.type = %q, want tool_use", gjson.GetBytes(out, "content.0.type").String())
 	}
-	if gjson.Get(out, "content.0.name").String() != "sum" {
-		t.Fatalf("content.0.name = %q, want sum", gjson.Get(out, "content.0.name").String())
+	if gjson.GetBytes(out, "content.0.name").String() != "sum" {
+		t.Fatalf("content.0.name = %q, want sum", gjson.GetBytes(out, "content.0.name").String())
 	}
-	if gjson.Get(out, "stop_reason").String() != "tool_use" {
-		t.Fatalf("stop_reason = %q, want tool_use", gjson.Get(out, "stop_reason").String())
+	if gjson.GetBytes(out, "stop_reason").String() != "tool_use" {
+		t.Fatalf("stop_reason = %q, want tool_use", gjson.GetBytes(out, "stop_reason").String())
 	}
 }
 
@@ -272,18 +280,18 @@ func TestTranslateGitHubCopilotResponsesStreamToClaude_TextLifecycle(t *testing.
 	var param any
 
 	created := translateGitHubCopilotResponsesStreamToClaude([]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5-codex"}}`), &param)
-	if len(created) == 0 || !strings.Contains(created[0], "message_start") {
+	if len(created) == 0 || !strings.Contains(string(created[0]), "message_start") {
 		t.Fatalf("created events = %#v, want message_start", created)
 	}
 
 	delta := translateGitHubCopilotResponsesStreamToClaude([]byte(`data: {"type":"response.output_text.delta","delta":"he"}`), &param)
-	joinedDelta := strings.Join(delta, "")
+	joinedDelta := joinByteSlices(delta)
 	if !strings.Contains(joinedDelta, "content_block_start") || !strings.Contains(joinedDelta, "text_delta") {
 		t.Fatalf("delta events = %#v, want content_block_start + text_delta", delta)
 	}
 
 	completed := translateGitHubCopilotResponsesStreamToClaude([]byte(`data: {"type":"response.completed","response":{"usage":{"input_tokens":7,"output_tokens":9}}}`), &param)
-	joinedCompleted := strings.Join(completed, "")
+	joinedCompleted := joinByteSlices(completed)
 	if !strings.Contains(joinedCompleted, "message_delta") || !strings.Contains(joinedCompleted, "message_stop") {
 		t.Fatalf("completed events = %#v, want message_delta + message_stop", completed)
 	}

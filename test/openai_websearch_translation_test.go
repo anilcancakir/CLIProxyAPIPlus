@@ -47,25 +47,25 @@ func TestOpenAIToClaude_StreamAnnotationsAsCitations(t *testing.T) {
 	sse4 := []byte(`data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4o","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":50,"completion_tokens":20,"total_tokens":70}}`)
 	results := sdktranslator.TranslateStream(ctx, sdktranslator.FormatOpenAI, sdktranslator.FormatClaude, model, reqJSON, reqJSON, sse4, &param)
 
-	var messageDelta string
+	var messageDelta []byte
 	for _, r := range results {
-		if gjson.Get(r, "type").String() == "message_delta" {
+		if gjson.GetBytes(r, "type").String() == "message_delta" {
 			messageDelta = r
 			break
 		}
 	}
-	if messageDelta == "" {
+	if messageDelta == nil {
 		t.Fatalf("expected message_delta event, got: %v", results)
 	}
 
-	citCount := gjson.Get(messageDelta, "citations.#").Int()
+	citCount := gjson.GetBytes(messageDelta, "citations.#").Int()
 	if citCount != 2 {
 		t.Fatalf("expected 2 citations on message_delta, got %d: %s", citCount, messageDelta)
 	}
-	if url := gjson.Get(messageDelta, "citations.0.url").String(); url != "https://example.com/1" {
+	if url := gjson.GetBytes(messageDelta, "citations.0.url").String(); url != "https://example.com/1" {
 		t.Fatalf("expected citations[0].url=https://example.com/1, got %q", url)
 	}
-	if url := gjson.Get(messageDelta, "citations.1.url").String(); url != "https://example.com/2" {
+	if url := gjson.GetBytes(messageDelta, "citations.1.url").String(); url != "https://example.com/2" {
 		t.Fatalf("expected citations[1].url=https://example.com/2, got %q", url)
 	}
 }
@@ -96,19 +96,19 @@ func TestOpenAIToClaude_NonStreamAnnotationsAsCitations(t *testing.T) {
 	out := sdktranslator.TranslateNonStream(ctx, sdktranslator.FormatOpenAI, sdktranslator.FormatClaude, model, reqJSON, reqJSON, rawJSON, &param)
 
 	// Verify citations on response.
-	citCount := gjson.Get(out, "citations.#").Int()
+	citCount := gjson.GetBytes(out, "citations.#").Int()
 	if citCount != 2 {
 		t.Fatalf("expected 2 citations, got %d: %s", citCount, out)
 	}
-	if url := gjson.Get(out, "citations.0.url").String(); url != "https://example.com/1" {
+	if url := gjson.GetBytes(out, "citations.0.url").String(); url != "https://example.com/1" {
 		t.Fatalf("expected citations[0].url=https://example.com/1, got %q", url)
 	}
-	if url := gjson.Get(out, "citations.1.url").String(); url != "https://example.com/2" {
+	if url := gjson.GetBytes(out, "citations.1.url").String(); url != "https://example.com/2" {
 		t.Fatalf("expected citations[1].url=https://example.com/2, got %q", url)
 	}
 
 	// Verify text content still present.
-	textContent := gjson.Get(out, "content.0.text").String()
+	textContent := gjson.GetBytes(out, "content.0.text").String()
 	if textContent != "The answer is here." {
 		t.Fatalf("expected text content, got %q", textContent)
 	}
@@ -141,22 +141,22 @@ func TestOpenAIToGemini_StreamAnnotationsAsGroundingMetadata(t *testing.T) {
 	results := sdktranslator.TranslateStream(ctx, sdktranslator.FormatOpenAI, sdktranslator.FormatGemini, model, reqJSON, reqJSON, sse4, &param)
 
 	// Find chunk with groundingMetadata.
-	var finalChunk string
+	var finalChunk []byte
 	for _, r := range results {
-		if gjson.Get(r, "candidates.0.groundingMetadata").Exists() {
+		if gjson.GetBytes(r, "candidates.0.groundingMetadata").Exists() {
 			finalChunk = r
 			break
 		}
 	}
-	if finalChunk == "" {
+	if finalChunk == nil {
 		t.Fatalf("expected groundingMetadata on finish chunk, got: %v", results)
 	}
 
-	citCount := gjson.Get(finalChunk, "candidates.0.groundingMetadata.citations.#").Int()
+	citCount := gjson.GetBytes(finalChunk, "candidates.0.groundingMetadata.citations.#").Int()
 	if citCount != 1 {
 		t.Fatalf("expected 1 citation in groundingMetadata, got %d: %s", citCount, finalChunk)
 	}
-	citURL := gjson.Get(finalChunk, "candidates.0.groundingMetadata.citations.0.url").String()
+	citURL := gjson.GetBytes(finalChunk, "candidates.0.groundingMetadata.citations.0.url").String()
 	if citURL != "https://gemini.test" {
 		t.Fatalf("expected citations[0].url=https://gemini.test, got %q", citURL)
 	}
@@ -185,15 +185,15 @@ func TestOpenAIToGemini_NonStreamAnnotationsAsGroundingMetadata(t *testing.T) {
 	var param any
 	out := sdktranslator.TranslateNonStream(ctx, sdktranslator.FormatOpenAI, sdktranslator.FormatGemini, model, reqJSON, reqJSON, rawJSON, &param)
 
-	if !gjson.Get(out, "candidates.0.groundingMetadata").Exists() {
+	if !gjson.GetBytes(out, "candidates.0.groundingMetadata").Exists() {
 		t.Fatalf("expected groundingMetadata, got: %s", out)
 	}
 
-	citCount := gjson.Get(out, "candidates.0.groundingMetadata.citations.#").Int()
+	citCount := gjson.GetBytes(out, "candidates.0.groundingMetadata.citations.#").Int()
 	if citCount != 1 {
 		t.Fatalf("expected 1 citation, got %d: %s", citCount, out)
 	}
-	citURL := gjson.Get(out, "candidates.0.groundingMetadata.citations.0.url").String()
+	citURL := gjson.GetBytes(out, "candidates.0.groundingMetadata.citations.0.url").String()
 	if citURL != "https://gemini-ns.test" {
 		t.Fatalf("expected url=https://gemini-ns.test, got %q", citURL)
 	}
@@ -226,41 +226,41 @@ func TestOpenAIToResponses_StreamAnnotationsPopulated(t *testing.T) {
 	results := sdktranslator.TranslateStream(ctx, sdktranslator.FormatOpenAI, sdktranslator.FormatOpenAIResponse, model, reqJSON, reqJSON, sse4, &param)
 
 	// Verify content_part.done has annotations.
-	var partDone string
+	var partDone []byte
 	for _, r := range results {
-		if gjson.Get(r, "type").String() == "response.content_part.done" {
+		if gjson.GetBytes(r, "type").String() == "response.content_part.done" {
 			partDone = r
 			break
 		}
 	}
-	if partDone == "" {
+	if partDone == nil {
 		t.Fatalf("expected response.content_part.done, got: %v", results)
 	}
-	if cnt := gjson.Get(partDone, "part.annotations.#").Int(); cnt != 1 {
+	if cnt := gjson.GetBytes(partDone, "part.annotations.#").Int(); cnt != 1 {
 		t.Fatalf("expected 1 annotation on content_part.done, got %d: %s", cnt, partDone)
 	}
-	if url := gjson.Get(partDone, "part.annotations.0.url").String(); url != "https://resp.test" {
+	if url := gjson.GetBytes(partDone, "part.annotations.0.url").String(); url != "https://resp.test" {
 		t.Fatalf("expected part.annotations[0].url=https://resp.test, got %q", url)
 	}
 
 	// Verify output_item.done has annotations.
-	var itemDone string
+	var itemDone []byte
 	for _, r := range results {
-		if gjson.Get(r, "type").String() == "response.output_item.done" {
-			if gjson.Get(r, "item.type").String() == "message" {
+		if gjson.GetBytes(r, "type").String() == "response.output_item.done" {
+			if gjson.GetBytes(r, "item.type").String() == "message" {
 				itemDone = r
 				break
 			}
 		}
 	}
-	if itemDone == "" {
+	if itemDone == nil {
 		t.Fatalf("expected response.output_item.done with message, got: %v", results)
 	}
-	annCount := gjson.Get(itemDone, "item.content.0.annotations.#").Int()
+	annCount := gjson.GetBytes(itemDone, "item.content.0.annotations.#").Int()
 	if annCount != 1 {
 		t.Fatalf("expected 1 annotation on output_item.done, got %d: %s", annCount, itemDone)
 	}
-	if url := gjson.Get(itemDone, "item.content.0.annotations.0.url").String(); url != "https://resp.test" {
+	if url := gjson.GetBytes(itemDone, "item.content.0.annotations.0.url").String(); url != "https://resp.test" {
 		t.Fatalf("expected annotations[0].url=https://resp.test, got %q", url)
 	}
 }
@@ -289,11 +289,11 @@ func TestOpenAIToResponses_NonStreamAnnotationsPopulated(t *testing.T) {
 	out := sdktranslator.TranslateNonStream(ctx, sdktranslator.FormatOpenAI, sdktranslator.FormatOpenAIResponse, model, reqJSON, reqJSON, rawJSON, &param)
 
 	// Find message output item.
-	annCount := gjson.Get(out, "output.#(type==\"message\").content.0.annotations.#").Int()
+	annCount := gjson.GetBytes(out, "output.#(type==\"message\").content.0.annotations.#").Int()
 	if annCount != 1 {
 		t.Fatalf("expected 1 annotation on message output, got %d: %s", annCount, out)
 	}
-	annURL := gjson.Get(out, "output.#(type==\"message\").content.0.annotations.0.url").String()
+	annURL := gjson.GetBytes(out, "output.#(type==\"message\").content.0.annotations.0.url").String()
 	if annURL != "https://rns.test" {
 		t.Fatalf("expected annotations[0].url=https://rns.test, got %q", annURL)
 	}

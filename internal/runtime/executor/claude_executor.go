@@ -349,7 +349,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		data,
 		&param,
 	)
-	resp = cliproxyexecutor.Response{Payload: []byte(out), Headers: httpResp.Header.Clone()}
+	resp = cliproxyexecutor.Response{Payload: out, Headers: httpResp.Header.Clone()}
 	return resp, nil
 }
 
@@ -543,7 +543,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 				&param,
 			)
 			for i := range chunks {
-				out <- cliproxyexecutor.StreamChunk{Payload: []byte(chunks[i])}
+				out <- cliproxyexecutor.StreamChunk{Payload: chunks[i]}
 			}
 		}
 		if errScan := scanner.Err(); errScan != nil {
@@ -661,7 +661,7 @@ func (e *ClaudeExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Aut
 	appendAPIResponseChunk(ctx, e.cfg, data)
 	count := gjson.GetBytes(data, "input_tokens").Int()
 	out := sdktranslator.TranslateTokenCount(ctx, to, from, count, data)
-	return cliproxyexecutor.Response{Payload: []byte(out), Headers: resp.Header.Clone()}, nil
+	return cliproxyexecutor.Response{Payload: out, Headers: resp.Header.Clone()}, nil
 }
 
 func (e *ClaudeExecutor) Refresh(ctx context.Context, auth *cliproxyauth.Auth) (*cliproxyauth.Auth, error) {
@@ -1508,7 +1508,8 @@ func checkSystemInstructionsWithMode(payload []byte, strictMode bool) []byte {
 				// TTL ordering violations with the prompt-caching-scope-2026-01-05 beta.
 				partJSON := part.Raw
 				if !part.Get("cache_control").Exists() {
-					partJSON, _ = sjson.Set(partJSON, "cache_control.type", "ephemeral")
+					updated, _ := sjson.SetBytes([]byte(partJSON), "cache_control.type", "ephemeral")
+					partJSON = string(updated)
 				}
 				result += "," + partJSON
 			}
@@ -1516,7 +1517,8 @@ func checkSystemInstructionsWithMode(payload []byte, strictMode bool) []byte {
 		})
 	} else if system.Type == gjson.String && system.String() != "" {
 		partJSON := `{"type":"text","cache_control":{"type":"ephemeral"}}`
-		partJSON, _ = sjson.Set(partJSON, "text", system.String())
+		updated, _ := sjson.SetBytes([]byte(partJSON), "text", system.String())
+		partJSON = string(updated)
 		result += "," + partJSON
 	}
 	result += "]"

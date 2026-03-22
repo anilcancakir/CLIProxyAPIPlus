@@ -5,10 +5,16 @@ import (
 	"strings"
 	"testing"
 
+	"bytes"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+func joinTestOutputs(slices [][]byte) []byte {
+	return bytes.Join(slices, nil)
+}
 
 // TestConvertOpenAIResponseToClaude_StreamToolUseEmitted verifies that streaming tool_use
 // content_block_start events are emitted and that the tool name is populated.
@@ -35,13 +41,13 @@ func TestConvertOpenAIResponseToClaude_StreamToolUseEmitted(t *testing.T) {
 	}
 
 	var param any
-	var outputs []string
+	var outputs [][]byte
 	for _, chunk := range chunks {
 		out := ConvertOpenAIResponseToClaude(context.Background(), "m", []byte(originalRequest), nil, []byte(chunk), &param)
 		outputs = append(outputs, out...)
 	}
 
-	joined := strings.Join(outputs, "")
+	joined := string(joinTestOutputs(outputs))
 
 	// At least one tool_use content_block_start must be emitted.
 	if got := strings.Count(joined, `"content_block":{"type":"tool_use"`); got < 1 {
@@ -85,7 +91,7 @@ func TestConvertOpenAIResponseToClaudeNonStream_CanonicalizesToolName(t *testing
 
 	var param any
 	out := ConvertOpenAIResponseToClaudeNonStream(context.Background(), "m", []byte(originalRequest), nil, []byte(openAIResponse), &param)
-	result := gjson.Parse(out)
+	result := gjson.ParseBytes(out)
 
 	if got := result.Get("content.0.type").String(); got != "tool_use" {
 		t.Fatalf("expected first content block type tool_use, got %q", got)
@@ -134,7 +140,7 @@ func TestConvertOpenAIResponseToClaudeNonStream_ReasoningText(t *testing.T) {
 		[]byte(openAIResponse),
 		&param,
 	)
-	result := gjson.Parse(out)
+	result := gjson.ParseBytes(out)
 
 	// 1. First content block must be a thinking block with reasoning_text content.
 	require.Equal(t, "thinking", result.Get("content.0.type").String(),
@@ -187,7 +193,7 @@ func TestConvertOpenAIResponseToClaudeNonStream_ReasoningTokensUsage(t *testing.
 		[]byte(openAIResponse),
 		&param,
 	)
-	result := gjson.Parse(out)
+	result := gjson.ParseBytes(out)
 
 	// output_tokens should only include completion_tokens (not reasoning_tokens).
 	assert.Equal(t, int64(12), result.Get("usage.output_tokens").Int(),
@@ -214,7 +220,7 @@ func TestConvertOpenAIResponseToClaude_StreamReasoningText(t *testing.T) {
 	}
 
 	var param any
-	var outputs []string
+	var outputs [][]byte
 	for _, chunk := range chunks {
 		out := ConvertOpenAIResponseToClaude(
 			context.Background(),
@@ -227,7 +233,7 @@ func TestConvertOpenAIResponseToClaude_StreamReasoningText(t *testing.T) {
 		outputs = append(outputs, out...)
 	}
 
-	joined := strings.Join(outputs, "")
+	joined := string(joinTestOutputs(outputs))
 
 	// 1. Must emit exactly 1 message_start.
 	assert.Equal(t, 1, strings.Count(joined, `"type":"message_start"`),
@@ -296,7 +302,7 @@ func TestConvertOpenAIResponseToClaude_StreamReasoningText_NonStreamPath(t *test
 	)
 
 	require.Len(t, results, 1, "expected exactly 1 result for non-stream")
-	result := gjson.Parse(results[0])
+	result := gjson.ParseBytes(results[0])
 
 	// Must have thinking block first, then text block.
 	require.Equal(t, "thinking", result.Get("content.0.type").String())
