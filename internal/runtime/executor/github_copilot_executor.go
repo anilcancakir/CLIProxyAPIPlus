@@ -591,37 +591,31 @@ func useGitHubCopilotResponsesEndpoint(sourceFormat sdktranslator.Format, model 
 		return true
 	}
 	baseModel := strings.ToLower(thinking.ParseSuffix(model).ModelName)
-	// Match OpenCode's shouldUseCopilotResponsesApi: gpt-5+ (except gpt-5-mini) → /responses.
-	// Also route *codex* models to /responses for backwards compatibility.
-	if strings.Contains(baseModel, "codex") {
-		return true
+	if info := registry.GetGlobalRegistry().GetModelInfo(baseModel, githubCopilotAuthType); info != nil {
+		return len(info.SupportedEndpoints) > 0 && !containsEndpoint(info.SupportedEndpoints, githubCopilotChatPath) && containsEndpoint(info.SupportedEndpoints, githubCopilotResponsesPath)
 	}
-	return shouldUseCopilotResponsesAPI(baseModel)
+	if info := lookupGitHubCopilotStaticModelInfo(baseModel); info != nil {
+		return len(info.SupportedEndpoints) > 0 && !containsEndpoint(info.SupportedEndpoints, githubCopilotChatPath) && containsEndpoint(info.SupportedEndpoints, githubCopilotResponsesPath)
+	}
+	return strings.Contains(baseModel, "codex")
 }
 
-// shouldUseCopilotResponsesAPI mirrors OpenCode's routing logic:
-// gpt-N where N >= 5, excluding gpt-5-mini → /responses endpoint.
-func shouldUseCopilotResponsesAPI(modelID string) bool {
-	if !strings.HasPrefix(modelID, "gpt-") {
-		return false
+func lookupGitHubCopilotStaticModelInfo(model string) *registry.ModelInfo {
+	for _, info := range registry.GetStaticModelDefinitionsByChannel(githubCopilotAuthType) {
+		if info != nil && strings.EqualFold(info.ID, model) {
+			return info
+		}
 	}
-	rest := modelID[4:]
-	// Extract the major version number (digits after "gpt-").
-	i := 0
-	for i < len(rest) && rest[i] >= '0' && rest[i] <= '9' {
-		i++
+	return nil
+}
+
+func containsEndpoint(endpoints []string, endpoint string) bool {
+	for _, item := range endpoints {
+		if item == endpoint {
+			return true
+		}
 	}
-	if i == 0 {
-		return false
-	}
-	major := 0
-	for _, ch := range rest[:i] {
-		major = major*10 + int(ch-'0')
-	}
-	if major < 5 {
-		return false
-	}
-	return !strings.HasPrefix(modelID, "gpt-5-mini")
+	return false
 }
 
 // flattenAssistantContent converts assistant message content from array format

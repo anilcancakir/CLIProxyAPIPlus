@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/registry"
 	sdktranslator "github.com/router-for-me/CLIProxyAPI/v6/sdk/translator"
 	"github.com/tidwall/gjson"
 )
@@ -78,6 +79,29 @@ func TestUseGitHubCopilotResponsesEndpoint_CodexModel(t *testing.T) {
 	}
 }
 
+func TestUseGitHubCopilotResponsesEndpoint_RegistryResponsesOnlyModel(t *testing.T) {
+	t.Parallel()
+	if !useGitHubCopilotResponsesEndpoint(sdktranslator.FromString("openai"), "gpt-5.4") {
+		t.Fatal("expected responses-only registry model to use /responses")
+	}
+}
+
+func TestUseGitHubCopilotResponsesEndpoint_DynamicRegistryWinsOverStatic(t *testing.T) {
+	t.Parallel()
+
+	reg := registry.GetGlobalRegistry()
+	clientID := "github-copilot-test-client"
+	reg.RegisterClient(clientID, "github-copilot", []*registry.ModelInfo{{
+		ID:                 "gpt-5.4",
+		SupportedEndpoints: []string{"/chat/completions", "/responses"},
+	}})
+	defer reg.UnregisterClient(clientID)
+
+	if useGitHubCopilotResponsesEndpoint(sdktranslator.FromString("openai"), "gpt-5.4") {
+		t.Fatal("expected dynamic registry definition to take precedence over static fallback")
+	}
+}
+
 func TestUseGitHubCopilotResponsesEndpoint_DefaultChat(t *testing.T) {
 	t.Parallel()
 	if useGitHubCopilotResponsesEndpoint(sdktranslator.FromString("openai"), "claude-3-5-sonnet") {
@@ -87,18 +111,19 @@ func TestUseGitHubCopilotResponsesEndpoint_DefaultChat(t *testing.T) {
 
 func TestUseGitHubCopilotResponsesEndpoint_GPT5Models(t *testing.T) {
 	t.Parallel()
-	// gpt-5 and gpt-5-preview should route to /responses (matching OpenCode).
+	// Registry-based routing: models supporting both /chat/completions and /responses
+	// default to /chat/completions. Only responses-only models use /responses.
 	tests := []struct {
 		model string
 		want  bool
 	}{
-		{"gpt-5", true},
-		{"gpt-5-preview", true},
-		{"gpt-5-turbo", true},
-		{"gpt-5-mini", false},
+		{"gpt-5", false},         // supports both endpoints → chat
+		{"gpt-5-preview", false}, // not in static definitions → chat (fallback)
+		{"gpt-5-turbo", false},   // not in static definitions → chat (fallback)
+		{"gpt-5-mini", false},    // supports both endpoints → chat
 		{"gpt-4o", false},
 		{"gpt-4-turbo", false},
-		{"gpt-6", true},
+		{"gpt-6", false}, // not in static definitions → chat (fallback)
 		{"claude-opus-4.6", false},
 	}
 	for _, tt := range tests {
